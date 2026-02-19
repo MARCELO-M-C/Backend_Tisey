@@ -1,0 +1,425 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum CabinStatus {
+  DISPONIBLE
+  OCUPADA
+  MANTENIMIENTO
+}
+
+enum StayStatus {
+  BOOKED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+}
+
+enum OrderChannel {
+  DINE_IN
+  TAKE_AWAY
+  ROOM_CHARGE
+}
+
+enum ServiceMode {
+  EAT_HERE
+  TO_GO
+}
+
+enum OrderStatus {
+  DRAFT
+  SENT
+  IN_PROGRESS
+  READY
+  DELIVERED
+  CLOSED
+  CANCELLED
+}
+
+enum OrderItemStatus {
+  PENDING
+  IN_PROGRESS
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+enum OrderEventType {
+  STATUS_CHANGE
+  ITEM_ADDED
+  ITEM_UPDATED
+  ITEM_CANCELLED
+  NOTE_UPDATED
+  OTHER
+}
+
+enum InvoiceStatus {
+  ISSUED
+  VOID
+}
+
+enum InvoiceLineSource {
+  RESTAURANT
+  ROOM
+  EXTRA
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+  MIXED
+  OTHER
+}
+
+model User {
+  id                  BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  username            String       @unique @db.VarChar(50)
+  passwordHash        String       @map("password_hash") @db.VarChar(255)
+  firstName           String       @map("first_name") @db.VarChar(80)
+  lastName            String       @map("last_name") @db.VarChar(80)
+  isActive            Boolean      @default(true) @map("is_active")
+  createdAt           DateTime     @default(now()) @map("created_at") @db.DateTime(0)
+  userRoles           UserRole[]
+  shifts              Shift[]
+  createdStays        Stay[]       @relation("StayCreatedBy")
+  createdStayGroups   StayGroup[]  @relation("StayGroupCreatedBy")
+  createdOrders       Order[]      @relation("OrderCreatedBy")
+  waiterOrders        Order[]      @relation("OrderWaiter")
+  preparedOrderItems  OrderItem[]  @relation("OrderItemPreparedBy")
+  deliveredOrderItems OrderItem[]  @relation("OrderItemDeliveredBy")
+  orderEvents         OrderEvent[] @relation("OrderEventPerformedBy")
+  issuedInvoices      Invoice[]    @relation("InvoiceIssuedBy")
+  printedInvoices     Invoice[]    @relation("InvoicePrintedBy")
+  receivedPayments    Payment[]    @relation("PaymentReceivedBy")
+
+  @@map("users")
+}
+
+model Role {
+  id              BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  name            String           @unique @db.VarChar(50)
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id              BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  code            String           @unique @db.VarChar(80)
+  description     String?          @db.VarChar(255)
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId BigInt @map("user_id") @db.UnsignedBigInt
+  roleId BigInt @map("role_id") @db.UnsignedBigInt
+  user   User   @relation(fields: [userId], references: [id], map: "fk_ur_user")
+  role   Role   @relation(fields: [roleId], references: [id], map: "fk_ur_role")
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       BigInt     @map("role_id") @db.UnsignedBigInt
+  permissionId BigInt     @map("permission_id") @db.UnsignedBigInt
+  role         Role       @relation(fields: [roleId], references: [id], map: "fk_rp_role")
+  permission   Permission @relation(fields: [permissionId], references: [id], map: "fk_rp_perm")
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Station {
+  id         BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  code       String      @unique @db.VarChar(30)
+  name       String      @db.VarChar(80)
+  isActive   Boolean     @default(true) @map("is_active")
+  menuItems  MenuItem[]
+  orderItems OrderItem[]
+
+  @@map("stations")
+}
+
+model MenuCategory {
+  id        BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
+  name      String     @unique @db.VarChar(80)
+  sortOrder Int        @default(0) @map("sort_order")
+  isActive  Boolean    @default(true) @map("is_active")
+  menuItems MenuItem[]
+
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id         BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  categoryId BigInt       @map("category_id") @db.UnsignedBigInt
+  stationId  BigInt       @map("station_id") @db.UnsignedBigInt
+  name       String       @unique(map: "uq_menuitem_name") @db.VarChar(120)
+  basePrice  Decimal      @map("base_price") @db.Decimal(10, 2)
+  isActive   Boolean      @default(true) @map("is_active")
+  createdAt  DateTime     @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt  DateTime?    @map("updated_at") @db.DateTime(0)
+  category   MenuCategory @relation(fields: [categoryId], references: [id], map: "fk_mi_cat")
+  station    Station      @relation(fields: [stationId], references: [id], map: "fk_mi_station")
+  orderItems OrderItem[]
+
+  @@index([categoryId], map: "idx_menuitems_category")
+  @@index([stationId], map: "idx_menuitems_station")
+  @@map("menu_items")
+}
+
+model RestaurantTable {
+  id       BigInt  @id @default(autoincrement()) @db.UnsignedBigInt
+  code     String  @unique @db.VarChar(20)
+  name     String? @db.VarChar(50)
+  capacity Int?
+  isActive Boolean @default(true) @map("is_active")
+  orders   Order[]
+
+  @@map("restaurant_tables")
+}
+
+model Shift {
+  id        BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  userId    BigInt    @map("user_id") @db.UnsignedBigInt
+  startedAt DateTime  @default(now()) @map("started_at") @db.DateTime(0)
+  endedAt   DateTime? @map("ended_at") @db.DateTime(0)
+  notes     String?   @db.VarChar(255)
+  user      User      @relation(fields: [userId], references: [id], map: "fk_shift_user")
+  orders    Order[]
+
+  @@index([userId, startedAt], map: "idx_shifts_user_started")
+  @@map("shifts")
+}
+
+model Cabin {
+  id                BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  cabinNumber       Int         @unique @map("cabin_number")
+  name              String?     @db.VarChar(80)
+  capacity          Int
+  basePricePerNight Decimal?    @map("base_price_per_night") @db.Decimal(10, 2)
+  status            CabinStatus @default(DISPONIBLE)
+  isActive          Boolean     @default(true) @map("is_active")
+  stays             Stay[]
+
+  @@map("cabins")
+}
+
+model Guest {
+  id           BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  fullName     String      @map("full_name") @db.VarChar(160)
+  idNumber     String?     @map("id_number") @db.VarChar(40)
+  originPlace  String?     @map("origin_place") @db.VarChar(120)
+  createdAt    DateTime    @default(now()) @map("created_at") @db.DateTime(0)
+  primaryStays Stay[]      @relation("StayPrimaryGuest")
+  stayGuests   StayGuest[]
+
+  @@index([fullName], map: "idx_guest_name")
+  @@index([idNumber], map: "idx_guest_idnum")
+  @@map("guests")
+}
+
+model StayGroup {
+  id            BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
+  groupCode     String     @unique @map("group_code") @db.VarChar(30)
+  name          String?    @db.VarChar(120)
+  checkInDate   DateTime   @map("check_in_date") @db.Date
+  checkOutDate  DateTime   @map("check_out_date") @db.Date
+  status        StayStatus @default(CHECKED_IN)
+  createdBy     BigInt?    @map("created_by") @db.UnsignedBigInt
+  createdAt     DateTime   @default(now()) @map("created_at") @db.DateTime(0)
+  notes         String?    @db.VarChar(255)
+  createdByUser User?      @relation("StayGroupCreatedBy", fields: [createdBy], references: [id], map: "fk_staygroup_createdby")
+  stays         Stay[]
+  orders        Order[]
+  invoices      Invoice[]
+
+  @@index([checkInDate, checkOutDate], map: "idx_stay_groups_dates")
+  @@map("stay_groups")
+}
+
+model Stay {
+  id             BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  cabinId        BigInt      @map("cabin_id") @db.UnsignedBigInt
+  primaryGuestId BigInt      @map("primary_guest_id") @db.UnsignedBigInt
+  groupId        BigInt?     @map("group_id") @db.UnsignedBigInt
+  checkInDate    DateTime    @map("check_in_date") @db.Date
+  checkOutDate   DateTime    @map("check_out_date") @db.Date
+  status         StayStatus  @default(CHECKED_IN)
+  createdBy      BigInt?     @map("created_by") @db.UnsignedBigInt
+  createdAt      DateTime    @default(now()) @map("created_at") @db.DateTime(0)
+  cabin          Cabin       @relation(fields: [cabinId], references: [id], map: "fk_stay_cabin")
+  primaryGuest   Guest       @relation("StayPrimaryGuest", fields: [primaryGuestId], references: [id], map: "fk_stay_guest")
+  createdByUser  User?       @relation("StayCreatedBy", fields: [createdBy], references: [id], map: "fk_stay_createdby")
+  group          StayGroup?  @relation(fields: [groupId], references: [id], map: "fk_stay_group")
+  stayGuests     StayGuest[]
+  orders         Order[]
+  invoices       Invoice[]
+
+  @@index([checkInDate, checkOutDate], map: "idx_stays_dates")
+  @@index([cabinId], map: "idx_stays_cabin")
+  @@index([groupId], map: "idx_stays_group")
+  @@map("stays")
+}
+
+model StayGuest {
+  stayId  BigInt @map("stay_id") @db.UnsignedBigInt
+  guestId BigInt @map("guest_id") @db.UnsignedBigInt
+  stay    Stay   @relation(fields: [stayId], references: [id], map: "fk_sg_stay")
+  guest   Guest  @relation(fields: [guestId], references: [id], map: "fk_sg_guest")
+
+  @@id([stayId, guestId])
+  @@map("stay_guests")
+}
+
+model Order {
+  id            BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  orderCode     String           @unique @map("order_code") @db.VarChar(30)
+  channel       OrderChannel
+  serviceMode   ServiceMode      @map("service_mode")
+  status        OrderStatus      @default(DRAFT)
+  tableId       BigInt?          @map("table_id") @db.UnsignedBigInt
+  stayId        BigInt?          @map("stay_id") @db.UnsignedBigInt
+  stayGroupId   BigInt?          @map("stay_group_id") @db.UnsignedBigInt
+  createdBy     BigInt           @map("created_by") @db.UnsignedBigInt
+  waiterId      BigInt?          @map("waiter_id") @db.UnsignedBigInt
+  shiftId       BigInt?          @map("shift_id") @db.UnsignedBigInt
+  notes         String?          @db.VarChar(500)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.DateTime(0)
+  sentAt        DateTime?        @map("sent_at") @db.DateTime(0)
+  closedAt      DateTime?        @map("closed_at") @db.DateTime(0)
+  cancelledAt   DateTime?        @map("cancelled_at") @db.DateTime(0)
+  cancelReason  String?          @map("cancel_reason") @db.VarChar(255)
+  table         RestaurantTable? @relation(fields: [tableId], references: [id], map: "fk_order_table")
+  stay          Stay?            @relation(fields: [stayId], references: [id], map: "fk_order_stay")
+  stayGroup     StayGroup?       @relation(fields: [stayGroupId], references: [id], map: "fk_order_staygroup")
+  createdByUser User             @relation("OrderCreatedBy", fields: [createdBy], references: [id], map: "fk_order_createdby")
+  waiter        User?            @relation("OrderWaiter", fields: [waiterId], references: [id], map: "fk_order_waiter")
+  shift         Shift?           @relation(fields: [shiftId], references: [id], map: "fk_order_shift")
+  items         OrderItem[]
+  events        OrderEvent[]
+  invoices      Invoice[]
+
+  @@index([status, createdAt], map: "idx_orders_status_created")
+  @@index([waiterId, createdAt], map: "idx_orders_waiter_created")
+  @@index([stayGroupId], map: "idx_orders_stay_group")
+  @@map("orders")
+}
+
+model OrderItem {
+  id              BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  orderId         BigInt          @map("order_id") @db.UnsignedBigInt
+  menuItemId      BigInt?         @map("menu_item_id") @db.UnsignedBigInt
+  itemName        String          @map("item_name") @db.VarChar(120)
+  stationId       BigInt          @map("station_id") @db.UnsignedBigInt
+  unitPrice       Decimal         @map("unit_price") @db.Decimal(10, 2)
+  quantity        Int             @default(1)
+  itemNotes       String?         @map("item_notes") @db.VarChar(255)
+  itemStatus      OrderItemStatus @default(PENDING) @map("item_status")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt       DateTime?       @map("updated_at") @db.DateTime(0)
+  startedAt       DateTime?       @map("started_at") @db.DateTime(0)
+  readyAt         DateTime?       @map("ready_at") @db.DateTime(0)
+  deliveredAt     DateTime?       @map("delivered_at") @db.DateTime(0)
+  preparedBy      BigInt?         @map("prepared_by") @db.UnsignedBigInt
+  deliveredBy     BigInt?         @map("delivered_by") @db.UnsignedBigInt
+  order           Order           @relation(fields: [orderId], references: [id], map: "fk_oi_order")
+  menuItem        MenuItem?       @relation(fields: [menuItemId], references: [id], map: "fk_oi_menuitem")
+  station         Station         @relation(fields: [stationId], references: [id], map: "fk_oi_station")
+  preparedByUser  User?           @relation("OrderItemPreparedBy", fields: [preparedBy], references: [id], map: "fk_oi_prepared_by")
+  deliveredByUser User?           @relation("OrderItemDeliveredBy", fields: [deliveredBy], references: [id], map: "fk_oi_delivered_by")
+  invoiceLines    InvoiceLine[]
+
+  @@index([orderId], map: "idx_items_order")
+  @@index([stationId, itemStatus, createdAt], map: "idx_items_station_status")
+  @@map("order_items")
+}
+
+model OrderEvent {
+  id              BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  orderId         BigInt         @map("order_id") @db.UnsignedBigInt
+  eventType       OrderEventType @map("event_type")
+  oldValue        String?        @map("old_value") @db.VarChar(200)
+  newValue        String?        @map("new_value") @db.VarChar(200)
+  performedBy     BigInt         @map("performed_by") @db.UnsignedBigInt
+  performedAt     DateTime       @default(now()) @map("performed_at") @db.DateTime(0)
+  order           Order          @relation(fields: [orderId], references: [id], map: "fk_oe_order")
+  performedByUser User           @relation("OrderEventPerformedBy", fields: [performedBy], references: [id], map: "fk_oe_user")
+
+  @@index([orderId, performedAt], map: "idx_events_order_time")
+  @@map("order_events")
+}
+
+model Invoice {
+  id            BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  invoiceCode   String        @unique @map("invoice_code") @db.VarChar(30)
+  status        InvoiceStatus @default(ISSUED)
+  issuedBy      BigInt        @map("issued_by") @db.UnsignedBigInt
+  issuedAt      DateTime      @default(now()) @map("issued_at") @db.DateTime(0)
+  orderId       BigInt?       @map("order_id") @db.UnsignedBigInt
+  stayId        BigInt?       @map("stay_id") @db.UnsignedBigInt
+  stayGroupId   BigInt?       @map("stay_group_id") @db.UnsignedBigInt
+  subtotal      Decimal       @default(0) @db.Decimal(10, 2)
+  tax           Decimal       @default(0) @db.Decimal(10, 2)
+  total         Decimal       @default(0) @db.Decimal(10, 2)
+  notes         String?       @db.VarChar(255)
+  printedAt     DateTime?     @map("printed_at") @db.DateTime(0)
+  printedBy     BigInt?       @map("printed_by") @db.UnsignedBigInt
+  printCount    Int           @default(0) @map("print_count")
+  issuedByUser  User          @relation("InvoiceIssuedBy", fields: [issuedBy], references: [id], map: "fk_inv_user")
+  printedByUser User?         @relation("InvoicePrintedBy", fields: [printedBy], references: [id], map: "fk_inv_printed_by")
+  order         Order?        @relation(fields: [orderId], references: [id], map: "fk_inv_order")
+  stay          Stay?         @relation(fields: [stayId], references: [id], map: "fk_inv_stay")
+  stayGroup     StayGroup?    @relation(fields: [stayGroupId], references: [id], map: "fk_inv_staygroup")
+  lines         InvoiceLine[]
+  payments      Payment[]
+
+  @@index([issuedAt], map: "idx_invoice_time")
+  @@index([orderId], map: "idx_invoice_order")
+  @@index([stayId], map: "idx_invoice_stay")
+  @@index([stayGroupId], map: "idx_invoice_stay_group")
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id          BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  invoiceId   BigInt            @map("invoice_id") @db.UnsignedBigInt
+  source      InvoiceLineSource
+  description String            @db.VarChar(160)
+  quantity    Int               @default(1)
+  unitPrice   Decimal           @map("unit_price") @db.Decimal(10, 2)
+  lineTotal   Decimal           @map("line_total") @db.Decimal(10, 2)
+  orderItemId BigInt?           @map("order_item_id") @db.UnsignedBigInt
+  createdAt   DateTime          @default(now()) @map("created_at") @db.DateTime(0)
+  invoice     Invoice           @relation(fields: [invoiceId], references: [id], map: "fk_il_invoice")
+  orderItem   OrderItem?        @relation(fields: [orderItemId], references: [id], map: "fk_il_orderitem")
+
+  @@index([invoiceId], map: "idx_invlines_invoice")
+  @@map("invoice_lines")
+}
+
+model Payment {
+  id             BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  invoiceId      BigInt        @map("invoice_id") @db.UnsignedBigInt
+  method         PaymentMethod
+  amount         Decimal       @db.Decimal(10, 2)
+  reference      String?       @db.VarChar(80)
+  paidAt         DateTime      @default(now()) @map("paid_at") @db.DateTime(0)
+  receivedBy     BigInt        @map("received_by") @db.UnsignedBigInt
+  invoice        Invoice       @relation(fields: [invoiceId], references: [id], map: "fk_pay_invoice")
+  receivedByUser User          @relation("PaymentReceivedBy", fields: [receivedBy], references: [id], map: "fk_pay_user")
+
+  @@index([invoiceId], map: "idx_pay_invoice")
+  @@index([paidAt], map: "idx_pay_time")
+  @@map("payments")
+}
