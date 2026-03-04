@@ -64,6 +64,13 @@ type OverdueQuery = {
   stationId?: string;
 };
 
+type OrderListQuery = {
+  status?: OrderStatus;
+  waiterId?: string;
+  take?: string;
+  skip?: string;
+};
+
 type OverdueOrderRow = {
   id: bigint;
   order_code: string;
@@ -129,6 +136,37 @@ const overdueSchema = {
     type: "object",
     properties: {
       stationId: { type: "string" },
+    },
+  },
+};
+
+const listOrdersSchema = {
+  tags: ["Orders"],
+  summary: "Listar pedidos",
+  security: [{ bearerAuth: [] }],
+  querystring: {
+    type: "object",
+    properties: {
+      status: {
+        type: "string",
+        enum: ["DRAFT", "SENT", "IN_PROGRESS", "READY", "DELIVERED", "CLOSED", "CANCELLED"],
+      },
+      waiterId: { type: "string" },
+      take: { type: "string" },
+      skip: { type: "string" },
+    },
+  },
+};
+
+const getOrderSchema = {
+  tags: ["Orders"],
+  summary: "Obtener pedido por id",
+  security: [{ bearerAuth: [] }],
+  params: {
+    type: "object",
+    required: ["orderId"],
+    properties: {
+      orderId: { type: "string" },
     },
   },
 };
@@ -452,6 +490,112 @@ export const ordersRoutes: FastifyPluginAsync = async (app) => {
       }
 
       return reply.internalServerError("No se pudo crear el pedido.");
+    },
+  );
+
+  app.get<{ Querystring: OrderListQuery }>(
+    "/",
+    {
+      preHandler: [
+        authenticate,
+        requireAnyRole([...ROLE_GROUPS.WAITER, ...ROLE_GROUPS.KITCHEN, ...ROLE_GROUPS.CASHIER]),
+      ],
+      schema: listOrdersSchema,
+    },
+    async (request, reply) => {
+      const authUser = request.authUser;
+      if (!authUser) {
+        return reply.unauthorized("No autenticado.");
+      }
+
+      const canViewAllOrders =
+        isAdminUser(authUser) || isKitchenUser(authUser) || isCashierUser(authUser);
+      const restrictToWaiter = isWaiterUser(authUser) && !canViewAllOrders;
+
+      let waiterId: bigint | undefined;
+      if (request.query.waiterId) {
+        try {
+          waiterId = parseRequiredId(request.query.waiterId, "waiterId");
+        } catch (error) {
+          return reply.badRequest((error as Error).message);
+        }
+      }
+
+      if (restrictToWaiter) {
+        waiterId = authUser.id;
+      }
+
+      const take = Number(request.query.take ?? "100");
+      const skip = Number(request.query.skip ?? "0");
+      if (!Number.isInteger(take) || !Number.isInteger(skip) || take < 1 || skip < 0) {
+        return reply.badRequest("take/skip deben ser enteros validos.");
+      }
+
+      const orders = await prisma.order.findMany({
+        where: {
+          ...(request.query.status ? { status: request.query.status } : {}),
+          ...(waiterId ? { waiterId } : {}),
+        },
+        include: {
+          items: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: Math.min(take, 500),
+        skip,
+      });
+
+      return {
+        count: orders.length,
+        data: orders.map((order) => serializeOrder(order)),
+      };
+    },
+  );
+
+  app.get<{ Params: { orderId: string } }>(
+    "/:orderId",
+    {
+      preHandler: [
+        authenticate,
+        requireAnyRole([...ROLE_GROUPS.WAITER, ...ROLE_GROUPS.KITCHEN, ...ROLE_GROUPS.CASHIER]),
+      ],
+      schema: getOrderSchema,
+    },
+    async (request, reply) => {
+      const authUser = request.authUser;
+      if (!authUser) {
+        return reply.unauthorized("No autenticado.");
+      }
+
+      let orderId: bigint;
+      try {
+        orderId = parseRequiredId(request.params.orderId, "orderId");
+      } catch (error) {
+        return reply.badRequest((error as Error).message);
+      }
+
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { items: true },
+      });
+
+      if (!order) {
+        return reply.notFound("Pedido no encontrado.");
+      }
+
+      const canViewAllOrders =
+        isAdminUser(authUser) || isKitchenUser(authUser) || isCashierUser(authUser);
+      const restrictToWaiter = isWaiterUser(authUser) && !canViewAllOrders;
+
+      if (restrictToWaiter) {
+        const ownsOrder = order.waiterId === authUser.id || order.createdBy === authUser.id;
+        if (!ownsOrder) {
+          return reply.forbidden("No puedes ver pedidos de otros meseros.");
+        }
+      }
+
+      return serializeOrder(order);
     },
   );
 

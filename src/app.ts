@@ -8,9 +8,11 @@ import swaggerUi from "@fastify/swagger-ui";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
 import { env } from "./config/env";
+import { adminRoutes } from "./modules/admin/admin.routes";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { healthRoutes } from "./modules/health/health.routes";
 import { ordersRoutes } from "./modules/orders/orders.routes";
+import { reportsRoutes } from "./modules/reports/reports.routes";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -66,9 +68,11 @@ export async function buildApp(): Promise<FastifyInstance> {
         },
       },
       tags: [
+        { name: "Admin", description: "CRUD administrativo de tablas" },
         { name: "Auth", description: "Autenticacion y autorizacion" },
         { name: "Health", description: "Disponibilidad de la API" },
         { name: "Orders", description: "Pedidos y tiempos KDS" },
+        { name: "Reports", description: "Reportes y vistas de negocio" },
       ],
     },
   });
@@ -96,9 +100,11 @@ export async function buildApp(): Promise<FastifyInstance> {
     }),
   );
 
+  await app.register(adminRoutes, { prefix: "/api/admin" });
   await app.register(authRoutes, { prefix: "/api/auth" });
   await app.register(healthRoutes);
   await app.register(ordersRoutes, { prefix: "/api/orders" });
+  await app.register(reportsRoutes, { prefix: "/api/reports" });
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
     request.log.error(error);
@@ -112,6 +118,13 @@ export async function buildApp(): Promise<FastifyInstance> {
 
     const statusCode =
       error.statusCode && error.statusCode >= 400 ? error.statusCode : 500;
+
+    if ((error as { code?: string }).code === "P2022") {
+      return reply.status(500).send({
+        message:
+          "La base de datos no coincide con el schema Prisma actual. Aplica los cambios SQL de fase 1 (docs/phase1_group_support.sql).",
+      });
+    }
 
     return reply.status(statusCode).send({
       message: statusCode === 500 ? "Internal server error." : error.message,

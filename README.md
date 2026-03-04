@@ -64,9 +64,25 @@ npm run dev
 - `POST /api/auth/login` (retorna JWT)
 - `GET /api/auth/me` (requiere JWT)
 - `GET /health`
+- `GET /api/orders` (listar pedidos, requiere JWT)
+- `GET /api/orders/:orderId` (detalle pedido, requiere JWT)
 - `POST /api/orders` (crea pedido con `order_code` secuencial diario, requiere JWT)
 - `GET /api/orders/overdue` (alertas de atraso 20+ y roja 30+ min, requiere JWT)
 - `PATCH /api/orders/:orderId` (edicion por rol/tiempo, requiere JWT)
+- `GET /api/reports/monthly-sales` (ventas mensuales)
+- `GET /api/reports/overdue-orders` (pedidos atrasados)
+
+## Endpoints CRUD de la BD (admin)
+
+Prefijo: `/api/admin/*` (requiere rol admin)
+
+- CRUD simple (`GET list`, `GET by id`, `POST`, `PATCH`, `DELETE`) para:
+`users`, `roles`, `permissions`, `stations`, `menu-categories`, `menu-items`,
+`restaurant-tables`, `shifts`, `cabins`, `guests`, `stay-groups`, `stays`,
+`orders`, `order-items`, `order-events`, `invoices`, `invoice-lines`, `payments`.
+- Tablas compuestas:
+`user-roles`, `role-permissions`, `stay-guests`
+con endpoints de listar, crear y eliminar por llave compuesta.
 
 ## Realtime
 
@@ -95,3 +111,6 @@ Este script agrega soporte para grupos de hospedaje en:
 - `stays.group_id`
 - `orders.stay_group_id`
 - `invoices.stay_group_id`
+
+Importante:
+si no aplicas este script en tu DB real, varios endpoints devolveran error de schema no alineado.
