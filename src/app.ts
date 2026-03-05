@@ -8,27 +8,25 @@ import swaggerUi from "@fastify/swagger-ui";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
 import { env } from "./config/env";
-import { adminRoutes } from "./modules/admin/admin.routes";
-import { authRoutes } from "./modules/auth/auth.routes";
-import { healthRoutes } from "./modules/health/health.routes";
-import { ordersRoutes } from "./modules/orders/orders.routes";
-import { reportsRoutes } from "./modules/reports/reports.routes";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: true,
   });
+
   const allowedOrigins = env.CORS_ORIGIN.split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
 
   await app.register(sensible);
+
   await app.register(jwt, {
     secret: env.JWT_SECRET,
     sign: {
       expiresIn: env.JWT_EXPIRES_IN,
     },
   });
+
   await app.register(cors, {
     origin: (origin, callback) => {
       if (!origin) {
@@ -45,13 +43,16 @@ export async function buildApp(): Promise<FastifyInstance> {
     },
     credentials: true,
   });
+
   await app.register(helmet, {
     contentSecurityPolicy: false,
   });
+
   await app.register(rateLimit, {
     max: 120,
     timeWindow: "1 minute",
   });
+
   await app.register(swagger, {
     openapi: {
       info: {
@@ -68,14 +69,20 @@ export async function buildApp(): Promise<FastifyInstance> {
         },
       },
       tags: [
-        { name: "Admin", description: "CRUD administrativo de tablas" },
-        { name: "Auth", description: "Autenticacion y autorizacion" },
-        { name: "Health", description: "Disponibilidad de la API" },
-        { name: "Orders", description: "Pedidos y tiempos KDS" },
-        { name: "Reports", description: "Reportes y vistas de negocio" },
+        { name: "Base", description: "Rutas base del sistema" },
+        { name: "Auth", description: "Autenticación" },
+        { name: "Cabins", description: "Cabañas y disponibilidad" },
+        { name: "Guests", description: "Huéspedes y reservas" },
+        { name: "Users", description: "Usuarios y roles" },
+        { name: "Menu", description: "Menú y categorías" },
+        { name: "Stations", description: "Estaciones KDS" },
+        { name: "Orders", description: "Pedidos y estado de preparación" },
+        { name: "Stays", description: "Estadías y check-in/check-out" },
+        { name: "Invoices", description: "Facturación y pagos" },
       ],
     },
   });
+
   await app.register(swaggerUi, {
     routePrefix: "/docs",
     staticCSP: true,
@@ -89,8 +96,8 @@ export async function buildApp(): Promise<FastifyInstance> {
     "/",
     {
       schema: {
-        tags: ["Health"],
-        summary: "Raiz de la API",
+        tags: ["Base"],
+        summary: "Raíz de la API",
       },
     },
     async () => ({
@@ -100,11 +107,19 @@ export async function buildApp(): Promise<FastifyInstance> {
     }),
   );
 
-  await app.register(adminRoutes, { prefix: "/api/admin" });
-  await app.register(authRoutes, { prefix: "/api/auth" });
-  await app.register(healthRoutes);
-  await app.register(ordersRoutes, { prefix: "/api/orders" });
-  await app.register(reportsRoutes, { prefix: "/api/reports" });
+  app.get(
+    "/health",
+    {
+      schema: {
+        tags: ["Base"],
+        summary: "Estado de salud de la API",
+      },
+    },
+    async () => ({
+      ok: true,
+      status: "healthy",
+    }),
+  );
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
     request.log.error(error);
@@ -118,13 +133,6 @@ export async function buildApp(): Promise<FastifyInstance> {
 
     const statusCode =
       error.statusCode && error.statusCode >= 400 ? error.statusCode : 500;
-
-    if ((error as { code?: string }).code === "P2022") {
-      return reply.status(500).send({
-        message:
-          "La base de datos no coincide con el schema Prisma actual. Aplica los cambios SQL de fase 1 (docs/phase1_group_support.sql).",
-      });
-    }
 
     return reply.status(statusCode).send({
       message: statusCode === 500 ? "Internal server error." : error.message,
