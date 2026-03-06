@@ -10,10 +10,10 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(16),
-  JWT_EXPIRES_IN: z.string().default("8h"),
-  ORDER_ALERT_MINUTES: z.coerce.number().int().min(1).default(20),
-  ORDER_RED_ALERT_MINUTES: z.coerce.number().int().min(1).default(30),
-  WAITER_EDIT_WINDOW_MINUTES: z.coerce.number().int().min(1).default(15),
+  JWT_EXPIRES_IN: z.string().default("12h"),
+  LATE_ORDER_WARNING_MINUTES: z.coerce.number().int().min(1).default(20),
+  LATE_ORDER_CRITICAL_MINUTES: z.coerce.number().int().min(1).default(30),
+  WAITER_EDIT_WINDOW_MINUTES: z.coerce.number().int().min(1).default(30),
 });
 
 const parsed = envSchema.safeParse(process.env);

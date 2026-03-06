@@ -11,14 +11,6 @@ API REST (Node.js + Fastify + Prisma + MySQL) para el sistema de gestion y factu
 - Swagger OpenAPI en `/docs`
 - Seguridad base: `helmet`, `rate-limit`, validaciones y manejo de errores
 
-## Arranque local
-
-1. Instalar dependencias:
-
-```bash
-npm install
-```
-
 2. Configurar variables:
 
 ```bash
@@ -29,88 +21,77 @@ cp .env.example .env
 Tambien define `CORS_ORIGIN` con los dominios permitidos separados por comas.
 Opcionalmente ajusta `JWT_EXPIRES_IN` (por defecto `8h`).
 
-4. Generar cliente Prisma:
+# Instalación
+
+Instalar dependencias:
 
 ```bash
-npm run prisma:generate
+npm install
 ```
 
-5. Seed inicial de autenticacion (roles, permisos, usuarios demo):
+Generar cliente Prisma:
 
 ```bash
-npm run seed:auth
+npx prisma generate
+```
+Compilar el proyecto:
+
+```bash
+npm run build
 ```
 
-Credenciales por defecto:
-- `admin_demo` / `Admin123!`
-- `mesero_demo` / `Mesero123!`
-
-Puedes sobrescribir contrasenas con variables:
-- `SEED_ADMIN_PASSWORD`
-- `SEED_WAITER_PASSWORD`
-
-6. Ejecutar en desarrollo:
+Ejecutar en desarrollo:
 
 ```bash
 npm run dev
 ```
 
-## Swagger
+Ejecutar versión compilada:
 
-- URL local: `http://localhost:3000/docs`
+```bash
+npm run start
+```
 
-## Endpoints iniciales
+# Scripts útiles
 
-- `POST /api/auth/login` (retorna JWT)
-- `GET /api/auth/me` (requiere JWT)
-- `GET /health`
-- `GET /api/orders` (listar pedidos, requiere JWT)
-- `GET /api/orders/:orderId` (detalle pedido, requiere JWT)
-- `POST /api/orders` (crea pedido con `order_code` secuencial diario, requiere JWT)
-- `GET /api/orders/overdue` (alertas de atraso 20+ y roja 30+ min, requiere JWT)
-- `PATCH /api/orders/:orderId` (edicion por rol/tiempo, requiere JWT)
-- `GET /api/reports/monthly-sales` (ventas mensuales)
-- `GET /api/reports/overdue-orders` (pedidos atrasados)
+Desarrollo:
 
-## Endpoints CRUD de la BD (admin)
+```bash
+npm run dev
+```
 
-Prefijo: `/api/admin/*` (requiere rol admin)
+Build:
 
-- CRUD simple (`GET list`, `GET by id`, `POST`, `PATCH`, `DELETE`) para:
-`users`, `roles`, `permissions`, `stations`, `menu-categories`, `menu-items`,
-`restaurant-tables`, `shifts`, `cabins`, `guests`, `stay-groups`, `stays`,
-`orders`, `order-items`, `order-events`, `invoices`, `invoice-lines`, `payments`.
-- Tablas compuestas:
-`user-roles`, `role-permissions`, `stay-guests`
-con endpoints de listar, crear y eliminar por llave compuesta.
+```bash
+npm run build
+```
 
-## Realtime
+Producción local:
 
-- Socket.IO habilitado en el mismo server HTTP.
-- Evento emitido al crear pedido: `orders:new`.
-- Evento emitido al editar pedido: `orders:update`.
+```bash
+npm run start
+```
 
-## Roles esperados
+Generar Prisma Client:
 
-El backend reconoce estos roles (insensible a mayusculas):
+```bash
+npx prisma generate
+```
 
-- `ADMIN` / `SUPERADMIN`
-- `MESERO` / `WAITER`
-- `COCINA` / `KITCHEN`
-- `CAJA` / `CASHIER`
+Aplicar migraciones:
 
-## Cambios BD para grupos (fase 1)
+```bash
+npx prisma migrate dev
+```
 
-Se incluyo script SQL en:
+Abrir Prisma Studio:
 
-- `docs/phase1_group_support.sql`
+```bash
+npx prisma studio
+```
 
-Este script agrega soporte para grupos de hospedaje en:
+# Documentación Swagger
 
-- `stay_groups`
-- `stays.group_id`
-- `orders.stay_group_id`
-- `invoices.stay_group_id`
+Disponible localmente en:
 
-Importante:
-si no aplicas este script en tu DB real, varios endpoints devolveran error de schema no alineado.
+http://localhost:3000/docs
