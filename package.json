@@ -11,7 +11,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "seed:auth": "tsx src/scripts/seed-auth.ts",
+    "seed:rbac": "tsx src/scripts/seed-rbac.ts",
     "test": "vitest run"
   },
   "repository": {

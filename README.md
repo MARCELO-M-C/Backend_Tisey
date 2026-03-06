@@ -17,10 +17,6 @@ API REST (Node.js + Fastify + Prisma + MySQL) para el sistema de gestion y factu
 cp .env.example .env
 ```
 
-3. Ajustar `DATABASE_URL` y `JWT_SECRET` en `.env`.
-Tambien define `CORS_ORIGIN` con los dominios permitidos separados por comas.
-Opcionalmente ajusta `JWT_EXPIRES_IN` (por defecto `8h`).
-
 # Instalación
 
 Instalar dependencias:
