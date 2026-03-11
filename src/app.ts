@@ -7,6 +7,9 @@ import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
+import authRoutes from "./modules/auth/routes";
+import usersRoutes from "./modules/users/routes";
+
 import { env } from "./config/env";
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -68,17 +71,19 @@ export async function buildApp(): Promise<FastifyInstance> {
           },
         },
       },
-      tags: [
-        { name: "Base", description: "Rutas base del sistema" },
+      tags: [        
         { name: "Auth", description: "Autenticación" },
         { name: "Cabins", description: "Cabañas y disponibilidad" },
         { name: "Guests", description: "Huéspedes y reservas" },
+        { name: "Roles", description: "Roles generales y permisos" },
         { name: "Users", description: "Usuarios y roles" },
         { name: "Menu", description: "Menú y categorías" },
         { name: "Stations", description: "Estaciones KDS" },
         { name: "Orders", description: "Pedidos y estado de preparación" },
         { name: "Stays", description: "Estadías y check-in/check-out" },
         { name: "Invoices", description: "Facturación y pagos" },
+        { name: "Restaurant-Tables", description: "Mesas del restaurante" },
+        { name: "Shifts", description: "Turnos de trabajo" },
       ],
     },
   });
@@ -121,6 +126,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     }),
   );
 
+  await app.register(authRoutes, { prefix: "/auth" });
+  await app.register(usersRoutes, { prefix: "/users" });
+  
   app.setErrorHandler((error: FastifyError, request, reply) => {
     request.log.error(error);
 
