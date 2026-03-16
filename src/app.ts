@@ -9,6 +9,7 @@ import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 
 import authRoutes from "./modules/auth/routes";
 import usersRoutes from "./modules/users/routes";
+import ordersRoutes from "./modules/orders/routes";
 
 import { env } from "./config/env";
 
@@ -128,6 +129,7 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   await app.register(authRoutes, { prefix: "/auth" });
   await app.register(usersRoutes, { prefix: "/users" });
+  await app.register(ordersRoutes, { prefix: "/orders" });
   
   app.setErrorHandler((error: FastifyError, request, reply) => {
     request.log.error(error);
