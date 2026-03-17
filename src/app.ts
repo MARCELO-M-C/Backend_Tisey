@@ -11,6 +11,7 @@ import authRoutes from "./modules/auth/routes";
 import usersRoutes from "./modules/users/routes";
 import ordersRoutes from "./modules/orders/routes";
 import menuRoutes from "./modules/menu/routes";
+import stationsRoutes from "./modules/stations/routes";
 
 import { env } from "./config/env";
 
@@ -132,6 +133,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(usersRoutes, { prefix: "/users" });
   await app.register(ordersRoutes, { prefix: "/orders" });
   await app.register(menuRoutes, { prefix: "/menu" });
+  await app.register(stationsRoutes, { prefix: "/stations" });
   
   app.setErrorHandler((error: FastifyError, request, reply) => {
     request.log.error(error);
