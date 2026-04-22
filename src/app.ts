@@ -12,6 +12,7 @@ import usersRoutes from "./modules/users/routes";
 import ordersRoutes from "./modules/orders/routes";
 import menuRoutes from "./modules/menu/routes";
 import stationsRoutes from "./modules/stations/routes";
+import restaurantTablesRoutes from "./modules/restaurant-tables/routes";
 
 import { env } from "./config/env";
 
@@ -134,6 +135,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(ordersRoutes, { prefix: "/orders" });
   await app.register(menuRoutes, { prefix: "/menu" });
   await app.register(stationsRoutes, { prefix: "/stations" });
+  await app.register(restaurantTablesRoutes, { prefix: "/restaurant-tables" });
   
   app.setErrorHandler((error: FastifyError, request, reply) => {
     request.log.error(error);
