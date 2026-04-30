@@ -28,18 +28,16 @@ const restaurantTableResponseSchema = {
   additionalProperties: false,
   required: ["id", "code", "name", "capacity", "isActive", "ordersCount"],
   properties: {
-    id: { type: "string", example: "1" },
-    code: { type: "string", example: "M1" },
+    id: { type: "string" },
+    code: { type: "string" },
     name: {
       anyOf: [{ type: "string" }, { type: "null" }],
-      example: "Mesa terraza 1",
     },
     capacity: {
       anyOf: [{ type: "integer" }, { type: "null" }],
-      example: 4,
     },
-    isActive: { type: "boolean", example: true },
-    ordersCount: { type: "integer", example: 3 },
+    isActive: { type: "boolean" },
+    ordersCount: { type: "integer" },
   },
 };
 
@@ -60,12 +58,10 @@ const listRestaurantTablesQuerystringSchema = {
       type: "string",
       minLength: 1,
       maxLength: 80,
-      example: "M1",
     },
     isActive: {
       type: "string",
       enum: ["true", "false"],
-      example: "true",
     },
   },
 };
@@ -80,38 +76,20 @@ const createRestaurantTableBodySchema = {
       minLength: 1,
       maxLength: 20,
       pattern: "^[A-Za-z0-9_-]+$",
-      example: "M1",
     },
     name: {
       anyOf: [{ type: "string", minLength: 1, maxLength: 50 }, { type: "null" }],
-      example: "Mesa terraza 1",
     },
     capacity: {
       anyOf: [
         { type: "integer", minimum: 1, maximum: 100 },
         { type: "null" },
       ],
-      example: 4,
     },
     isActive: {
       type: "boolean",
-      example: true,
     },
   },
-  examples: [
-    {
-      code: "M1",
-      name: "Mesa terraza 1",
-      capacity: 4,
-      isActive: true,
-    },
-    {
-      code: "M2",
-      name: null,
-      capacity: null,
-      isActive: true,
-    },
-  ],
 };
 
 const updateRestaurantTableBodySchema = {
@@ -124,29 +102,17 @@ const updateRestaurantTableBodySchema = {
       minLength: 1,
       maxLength: 20,
       pattern: "^[A-Za-z0-9_-]+$",
-      example: "M1A",
     },
     name: {
       anyOf: [{ type: "string", minLength: 1, maxLength: 50 }, { type: "null" }],
-      example: "Mesa principal",
     },
     capacity: {
       anyOf: [
         { type: "integer", minimum: 1, maximum: 100 },
         { type: "null" },
       ],
-      example: 6,
     },
   },
-  examples: [
-    {
-      name: "Mesa principal",
-      capacity: 6,
-    },
-    {
-      name: null,
-    },
-  ],
 };
 
 const updateRestaurantTableStatusBodySchema = {
@@ -156,14 +122,8 @@ const updateRestaurantTableStatusBodySchema = {
   properties: {
     isActive: {
       type: "boolean",
-      example: false,
     },
   },
-  examples: [
-    {
-      isActive: false,
-    },
-  ],
 };
 
 const restaurantTablesRoutes: FastifyPluginAsync = async (app) => {

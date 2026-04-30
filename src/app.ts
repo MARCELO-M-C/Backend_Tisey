@@ -14,6 +14,11 @@ import menuRoutes from "./modules/menu/routes";
 import stationsRoutes from "./modules/stations/routes";
 import restaurantTablesRoutes from "./modules/restaurant-tables/routes";
 import shiftsRoutes from "./modules/shifts/routes";
+import cabinsRoutes from "./modules/cabins/routes";
+import guestsRoutes from "./modules/guests/routes";
+import rolesRoutes from "./modules/roles/routes";
+import staysRoutes from "./modules/stays/routes";
+import invoicesRoutes from "./modules/invoices/routes";
 
 import { env } from "./config/env";
 
@@ -138,6 +143,11 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(stationsRoutes, { prefix: "/stations" });
   await app.register(restaurantTablesRoutes, { prefix: "/restaurant-tables" });
   await app.register(shiftsRoutes, { prefix: "/shifts"});
+  await app.register(cabinsRoutes, { prefix: "/cabins" });
+  await app.register(guestsRoutes, { prefix: "/guests" });
+  await app.register(rolesRoutes, { prefix: "/roles" });
+  await app.register(staysRoutes, { prefix: "/stays" });
+  await app.register(invoicesRoutes, { prefix: "/invoices" });
   
   app.setErrorHandler((error: FastifyError, request, reply) => {
     request.log.error(error);

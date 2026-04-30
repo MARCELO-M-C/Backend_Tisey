@@ -21,12 +21,10 @@ const positiveBodyIdSchema = {
 const isoDateTimeSchema = {
   type: "string",
   format: "date-time",
-  example: "2026-04-25T08:00:00.000Z",
 };
 
 const nullableNotesSchema = {
   anyOf: [{ type: "string", minLength: 1, maxLength: 255 }, { type: "null" }],
-  example: "Turno de mañana",
 };
 
 const basicErrorSchema = {
@@ -44,12 +42,12 @@ const userSummarySchema = {
   additionalProperties: false,
   required: ["id", "username", "firstName", "lastName", "fullName", "isActive"],
   properties: {
-    id: { type: "string", example: "1" },
-    username: { type: "string", example: "mesero1" },
-    firstName: { type: "string", example: "Juan" },
-    lastName: { type: "string", example: "Pérez" },
-    fullName: { type: "string", example: "Juan Pérez" },
-    isActive: { type: "boolean", example: true },
+    id: { type: "string" },
+    username: { type: "string" },
+    firstName: { type: "string" },
+    lastName: { type: "string" },
+    fullName: { type: "string" },
+    isActive: { type: "boolean" },
   },
 };
 
@@ -66,22 +64,19 @@ const shiftResponseSchema = {
     "ordersCount",
   ],
   properties: {
-    id: { type: "string", example: "1" },
+    id: { type: "string" },
     startedAt: {
       type: "string",
-      example: "2026-04-25T08:00:00.000Z",
     },
     endedAt: {
       anyOf: [{ type: "string" }, { type: "null" }],
-      example: null,
     },
-    isOpen: { type: "boolean", example: true },
+    isOpen: { type: "boolean" },
     notes: {
       anyOf: [{ type: "string" }, { type: "null" }],
-      example: "Turno de mañana",
     },
     user: userSummarySchema,
-    ordersCount: { type: "integer", example: 5 },
+    ordersCount: { type: "integer" },
   },
 };
 
@@ -98,20 +93,15 @@ const listShiftsQuerystringSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
-    userId: {
-      ...digitStringSchema,
-      example: "1",
-    },
+    userId: digitStringSchema,
     isOpen: {
       type: "string",
       enum: ["true", "false"],
-      example: "true",
     },
     from: isoDateTimeSchema,
     to: {
       type: "string",
       format: "date-time",
-      example: "2026-04-25T18:00:00.000Z",
     },
   },
 };
@@ -124,21 +114,10 @@ const createShiftBodySchema = {
       ...positiveBodyIdSchema,
       description:
         "Opcional. Si no se envía, se crea el turno para el usuario autenticado.",
-      example: 1,
     },
     startedAt: isoDateTimeSchema,
     notes: nullableNotesSchema,
   },
-  examples: [
-    {
-      userId: 1,
-      startedAt: "2026-04-25T08:00:00.000Z",
-      notes: "Turno de mañana",
-    },
-    {
-      notes: "Turno para el usuario autenticado",
-    },
-  ],
 };
 
 const updateShiftBodySchema = {
@@ -149,17 +128,6 @@ const updateShiftBodySchema = {
     startedAt: isoDateTimeSchema,
     notes: nullableNotesSchema,
   },
-  examples: [
-    {
-      notes: "Cambio de observación del turno",
-    },
-    {
-      startedAt: "2026-04-25T09:00:00.000Z",
-    },
-    {
-      notes: null,
-    },
-  ],
 };
 
 const endShiftBodySchema = {
@@ -169,19 +137,9 @@ const endShiftBodySchema = {
     endedAt: {
       type: "string",
       format: "date-time",
-      example: "2026-04-25T17:00:00.000Z",
     },
     notes: nullableNotesSchema,
   },
-  examples: [
-    {
-      endedAt: "2026-04-25T17:00:00.000Z",
-      notes: "Turno cerrado sin pendientes",
-    },
-    {
-      notes: "Cierre usando hora actual del servidor",
-    },
-  ],
 };
 
 const shiftsRoutes: FastifyPluginAsync = async (app) => {
