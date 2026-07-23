@@ -424,6 +424,7 @@ export async function createOrder(
 
   const order = await ordersRepository.createOrder({
     orderCode,
+    customerName: input.customerName?.trim() || null,
     channel: input.channel,
     serviceMode: input.serviceMode,
     tableId: input.tableId ?? null,
@@ -488,6 +489,9 @@ export async function updateOrder(
   const updatedOrder = await ordersRepository.updateOrderHeader(
     orderId,
     {
+      ...(Object.prototype.hasOwnProperty.call(input, "customerName")
+        ? { customerName: input.customerName?.trim() || null }
+        : {}),
       ...(input.channel ? { channel: input.channel } : {}),
       ...(input.serviceMode ? { serviceMode: input.serviceMode } : {}),
       ...(Object.prototype.hasOwnProperty.call(input, "tableId")

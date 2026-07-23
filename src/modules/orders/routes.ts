@@ -238,6 +238,7 @@ const orderResponseSchema = {
   required: [
     "id",
     "orderCode",
+    "customerName",
     "channel",
     "serviceMode",
     "status",
@@ -259,6 +260,9 @@ const orderResponseSchema = {
   properties: {
     id: { type: "string" },
     orderCode: { type: "string" },
+    customerName: {
+      anyOf: [{ type: "string" }, { type: "null" }],
+    },
     channel: {
       type: "string",
       enum: ["DINE_IN", "TAKE_AWAY", "ROOM_CHARGE"],
@@ -360,7 +364,7 @@ const listOrdersQuerystringSchema = {
     search: {
       type: "string",
       minLength: 1,
-      maxLength: 30,
+      maxLength: 160,
     },
     status: {
       type: "string",
@@ -409,6 +413,12 @@ const createOrderBodySchema = {
   additionalProperties: false,
   required: ["channel", "serviceMode", "items"],
   properties: {
+    customerName: {
+      anyOf: [
+        { type: "string", minLength: 1, maxLength: 160 },
+        { type: "null" },
+      ],
+    },
     channel: {
       type: "string",
       enum: ["DINE_IN", "TAKE_AWAY", "ROOM_CHARGE"],
@@ -438,6 +448,12 @@ const updateOrderBodySchema = {
   additionalProperties: false,
   minProperties: 1,
   properties: {
+    customerName: {
+      anyOf: [
+        { type: "string", minLength: 1, maxLength: 160 },
+        { type: "null" },
+      ],
+    },
     channel: {
       type: "string",
       enum: ["DINE_IN", "TAKE_AWAY", "ROOM_CHARGE"],

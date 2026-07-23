@@ -88,6 +88,7 @@ export interface OrderSummaryDto {
 export interface OrderResponseDto {
   id: string;
   orderCode: string;
+  customerName: string | null;
   channel: string;
   serviceMode: string;
   status: string;
@@ -178,6 +179,7 @@ export function toOrderResponse(record: OrderRecord): OrderResponseDto {
   return {
     id: record.id.toString(),
     orderCode: record.orderCode,
+    customerName: record.customerName ?? null,
     channel: record.channel,
     serviceMode: record.serviceMode,
     status: record.status,

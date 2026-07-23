@@ -30,7 +30,7 @@ export const orderItemParamsSchema = z
 
 export const listOrdersQuerySchema = z
   .object({
-    search: z.string().trim().min(1).max(30).optional(),
+    search: z.string().trim().min(1).max(160).optional(),
     status: z.nativeEnum(OrderStatus).optional(),
     channel: z.nativeEnum(OrderChannel).optional(),
     waiterId: bigintIdSchema.optional(),
@@ -51,6 +51,7 @@ export const createOrderItemInputSchema = z
 
 export const createOrderBodySchema = z
   .object({
+    customerName: z.string().trim().min(1).max(160).nullable().optional(),
     channel: z.nativeEnum(OrderChannel),
     serviceMode: z.nativeEnum(ServiceMode),
     tableId: bigintIdSchema.optional(),
@@ -64,6 +65,7 @@ export const createOrderBodySchema = z
 
 export const updateOrderBodySchema = z
   .object({
+    customerName: z.string().trim().min(1).max(160).nullable().optional(),
     channel: z.nativeEnum(OrderChannel).optional(),
     serviceMode: z.nativeEnum(ServiceMode).optional(),
     tableId: nullableBigintIdSchema.optional(),

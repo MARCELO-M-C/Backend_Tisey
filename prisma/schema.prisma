@@ -197,6 +197,7 @@ model StayGuest {
 model Order {
   id            BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
   orderCode     String           @unique(map: "order_code") @map("order_code") @db.VarChar(30)
+  customerName  String?          @map("customer_name") @db.VarChar(160)
   channel       OrderChannel
   serviceMode   ServiceMode      @map("service_mode")
   status        OrderStatus      @default(DRAFT)

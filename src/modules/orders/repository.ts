@@ -19,6 +19,7 @@ const orderSelect = Prisma.validator<Prisma.OrderDefaultArgs>()({
   select: {
     id: true,
     orderCode: true,
+    customerName: true,
     channel: true,
     serviceMode: true,
     status: true,
@@ -166,6 +167,7 @@ export interface CreateOrderItemSnapshotInput {
 
 export interface CreateOrderRepositoryInput {
   orderCode: string;
+  customerName?: string | null;
   channel: OrderChannel;
   serviceMode: ServiceMode;
   tableId?: bigint | null;
@@ -179,6 +181,7 @@ export interface CreateOrderRepositoryInput {
 }
 
 export interface UpdateOrderHeaderRepositoryInput {
+  customerName?: string | null;
   channel?: OrderChannel;
   serviceMode?: ServiceMode;
   tableId?: bigint | null;
@@ -252,9 +255,18 @@ export async function listOrders(
     where: {
       ...(filters.search
         ? {
-            orderCode: {
-              contains: filters.search,
-            },
+            OR: [
+              {
+                orderCode: {
+                  contains: filters.search,
+                },
+              },
+              {
+                customerName: {
+                  contains: filters.search,
+                },
+              },
+            ],
           }
         : {}),
       ...(filters.status ? { status: filters.status } : {}),
@@ -395,6 +407,7 @@ export async function createOrder(
     const createdOrder = await tx.order.create({
       data: {
         orderCode: data.orderCode,
+        customerName: data.customerName ?? null,
         channel: data.channel,
         serviceMode: data.serviceMode,
         status: OrderStatus.DRAFT,
@@ -450,6 +463,9 @@ export async function updateOrderHeader(
     await tx.order.update({
       where: { id: orderId },
       data: {
+        ...(Object.prototype.hasOwnProperty.call(data, "customerName")
+          ? { customerName: data.customerName ?? null }
+          : {}),
         ...(data.channel ? { channel: data.channel } : {}),
         ...(data.serviceMode ? { serviceMode: data.serviceMode } : {}),
         ...(Object.prototype.hasOwnProperty.call(data, "tableId")
