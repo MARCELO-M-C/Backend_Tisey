@@ -10,23 +10,25 @@ const authUserSelect = Prisma.validator<Prisma.UserDefaultArgs>()({
     lastName: true,
     isActive: true,
     createdAt: true,
+
     userRoles: {
       select: {
         role: {
           select: {
             id: true,
             name: true,
-            rolePermissions: {
-              select: {
-                permission: {
-                  select: {
-                    id: true,
-                    code: true,
-                    description: true,
-                  },
-                },
-              },
-            },
+          },
+        },
+      },
+    },
+
+    userPermissions: {
+      select: {
+        permission: {
+          select: {
+            id: true,
+            code: true,
+            description: true,
           },
         },
       },

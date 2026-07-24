@@ -8,7 +8,7 @@ export interface AuthPermissionDto {
 
 export interface AuthRoleDto {
   id: string;
-  name: string;
+  name: string;  
   permissions: AuthPermissionDto[];
 }
 
@@ -33,45 +33,32 @@ export interface AuthTokenPayload {
   permissions: string[];
 }
 
-function mapPermissions(
-  record: AuthUserRecord,
-): { flat: AuthPermissionDto[]; grouped: Map<string, AuthPermissionDto[]> } {
-  const flatMap = new Map<string, AuthPermissionDto>();
-  const grouped = new Map<string, AuthPermissionDto[]>();
+function mapUserPermissions(record: AuthUserRecord): AuthPermissionDto[] {
+  const permissionsByCode = new Map<string, AuthPermissionDto>();
 
-  for (const userRole of record.userRoles) {
-    const rolePermissions: AuthPermissionDto[] = [];
+  for (const userPermission of record.userPermissions) {
+    const permission: AuthPermissionDto = {
+      id: userPermission.permission.id.toString(),
+      code: userPermission.permission.code,
+      description: userPermission.permission.description ?? null,
+    };
 
-    for (const rolePermission of userRole.role.rolePermissions) {
-      const permission: AuthPermissionDto = {
-        id: rolePermission.permission.id.toString(),
-        code: rolePermission.permission.code,
-        description: rolePermission.permission.description ?? null,
-      };
-
-      flatMap.set(permission.code, permission);
-      rolePermissions.push(permission);
-    }
-
-    grouped.set(userRole.role.id.toString(), rolePermissions);
+    permissionsByCode.set(permission.code, permission);
   }
 
-  return {
-    flat: Array.from(flatMap.values()).sort((a, b) =>
-      a.code.localeCompare(b.code),
-    ),
-    grouped,
-  };
+  return Array.from(permissionsByCode.values()).sort((a, b) =>
+    a.code.localeCompare(b.code),
+  );
 }
 
 export function toAuthUserDto(record: AuthUserRecord): AuthUserDto {
-  const { flat, grouped } = mapPermissions(record);
+  const permissions = mapUserPermissions(record);
 
   const roles: AuthRoleDto[] = record.userRoles
     .map((userRole) => ({
       id: userRole.role.id.toString(),
       name: userRole.role.name,
-      permissions: grouped.get(userRole.role.id.toString()) ?? [],
+      permissions: [],
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -84,7 +71,7 @@ export function toAuthUserDto(record: AuthUserRecord): AuthUserDto {
     isActive: record.isActive,
     createdAt: record.createdAt.toISOString(),
     roles,
-    permissions: flat,
+    permissions,
   };
 }
 

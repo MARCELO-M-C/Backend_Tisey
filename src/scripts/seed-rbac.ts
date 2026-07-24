@@ -2,137 +2,124 @@ import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma";
 
-const ROLES = {
-  ADMIN: "ADMIN",
-  WAITER: "MESERO",
-  KITCHEN: "COCINA",
-  CASHIER: "CAJA",
-} as const;
+const ROLES = [
+  "ADMIN",
+  "MANAGER",
+  "MESERO",
+  "COCINA",
+  "CAJA",
+] as const;
 
 const PERMISSIONS = [
   {
-    code: "users:manage",
-    description: "Gestionar usuarios",
+    code: "ADMIN_ORDERS_MANAGE",
+    description: "Gestionar órdenes del restaurante",
   },
   {
-    code: "roles:manage",
-    description: "Gestionar roles y permisos",
+    code: "ADMIN_KITCHEN_MANAGE",
+    description: "Gestionar cocina del restaurante",
   },
   {
-    code: "menu:view",
-    description: "Ver menu",
+    code: "ADMIN_TABLES_MANAGE",
+    description: "Gestionar mesas del restaurante",
   },
   {
-    code: "menu:manage",
-    description: "Gestionar menu",
+    code: "ADMIN_SHIFTS_&_STATIONS_MANAGE",
+    description: "Gestionar turnos del personal y estaciones del restaurante",
   },
   {
-    code: "stations:view",
-    description: "Ver estaciones y colas",
+    code: "ADMIN_MENU_MANAGE",
+    description: "Gestionar menú del restaurante",
   },
   {
-    code: "orders:create",
-    description: "Crear pedidos",
+    code: "ADMIN_LODGING_MANAGE",
+    description: "Gestionar hospedaje del hotel",
   },
   {
-    code: "orders:view:self",
-    description: "Ver pedidos propios",
-  },
-  {
-    code: "orders:update:self",
-    description: "Editar pedidos propios en ventana permitida",
-  },
-  {
-    code: "orders:view:all",
-    description: "Ver todos los pedidos",
-  },
-  {
-    code: "orders:update:any",
-    description: "Editar cualquier pedido",
-  },
-  {
-    code: "orders:overdue:view",
-    description: "Ver pedidos atrasados",
-  },
-  {
-    code: "invoices:issue",
-    description: "Emitir facturas",
-  },
-  {
-    code: "invoices:void",
-    description: "Anular facturas",
+    code: "ADMIN_BILLING_MANAGE",
+    description: "Gestionar facturación y cobros del restaurante y del hotel",
   },
 ] as const;
 
-const ROLE_PERMISSIONS: Record<string, string[]> = {
-  [ROLES.ADMIN]: PERMISSIONS.map((permission) => permission.code),
-  [ROLES.WAITER]: [
-    "menu:view",
-    "stations:view",
-    "orders:create",
-    "orders:view:self",
-    "orders:update:self",
-    "orders:overdue:view",
-  ],
-  [ROLES.KITCHEN]: [
-    "stations:view",
-    "orders:view:all",
-    "orders:overdue:view",
-  ],
-  [ROLES.CASHIER]: [
-    "stations:view",
-    "orders:view:all",
-    "orders:overdue:view",
-    "invoices:issue",
-    "invoices:void",
-  ],
-};
-
-type DemoUserConfig = {
+type AdminSeedConfig = {
   username: string;
+  password: string | null;
   firstName: string;
   lastName: string;
-  password: string;
-  roleName: string;
 };
 
-function getDemoUsers(): DemoUserConfig[] {
-  return [
-    {
-      username: "admin_demo",
-      firstName: "Admin",
-      lastName: "Demo",
-      password: process.env.SEED_ADMIN_PASSWORD ?? "Admin123!",
-      roleName: ROLES.ADMIN,
-    },
-    {
-      username: "mesero_demo",
-      firstName: "Mesero",
-      lastName: "Demo",
-      password: process.env.SEED_WAITER_PASSWORD ?? "Mesero123!",
-      roleName: ROLES.WAITER,
-    },
-    {
-      username: "cocina_demo",
-      firstName: "Cocina",
-      lastName: "Demo",
-      password: process.env.SEED_KITCHEN_PASSWORD ?? "Cocina123!",
-      roleName: ROLES.KITCHEN,
-    },
-    {
-      username: "caja_demo",
-      firstName: "Caja",
-      lastName: "Demo",
-      password: process.env.SEED_CASHIER_PASSWORD ?? "Caja123!",
-      roleName: ROLES.CASHIER,
-    },
-  ];
+function getRequiredEnvironmentVariable(name: string): string {
+  const value = process.env[name]?.trim();
+
+  if (!value) {
+    throw new Error(
+      `La variable de entorno ${name} es obligatoria para ejecutar el seed.`,
+    );
+  }
+
+  return value;
 }
 
-async function upsertRoles() {
+function getOptionalEnvironmentVariable(name: string): string | null {
+  const value = process.env[name]?.trim();
+  return value || null;
+}
+
+function validateAdminUsername(username: string): void {
+  if (username.length < 3 || username.length > 50) {
+    throw new Error(
+      "SEED_ADMIN_USERNAME debe tener entre 3 y 50 caracteres.",
+    );
+  }
+
+  if (!/^[a-zA-Z0-9._-]+$/.test(username)) {
+    throw new Error(
+      "SEED_ADMIN_USERNAME solo puede contener letras, números, punto, guion y guion bajo.",
+    );
+  }
+}
+
+function validateNewAdminPassword(password: string): void {
+  if (password.length < 12) {
+    throw new Error(
+      "SEED_ADMIN_PASSWORD debe tener al menos 12 caracteres.",
+    );
+  }
+
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasLowercase = /[a-z]/.test(password);
+  const hasNumber = /\d/.test(password);
+  const hasSpecialCharacter = /[^a-zA-Z0-9]/.test(password);
+
+  if (
+    !hasUppercase ||
+    !hasLowercase ||
+    !hasNumber ||
+    !hasSpecialCharacter
+  ) {
+    throw new Error(
+      "SEED_ADMIN_PASSWORD debe incluir mayúscula, minúscula, número y carácter especial.",
+    );
+  }
+}
+
+function getAdminSeedConfig(): AdminSeedConfig {
+  const config: AdminSeedConfig = {
+    username: getRequiredEnvironmentVariable("SEED_ADMIN_USERNAME"),
+    password: getOptionalEnvironmentVariable("SEED_ADMIN_PASSWORD"),
+    firstName: getRequiredEnvironmentVariable("SEED_ADMIN_FIRST_NAME"),
+    lastName: getRequiredEnvironmentVariable("SEED_ADMIN_LAST_NAME"),
+  };
+
+  validateAdminUsername(config.username);
+
+  return config;
+}
+
+async function upsertRoles(): Promise<Map<string, bigint>> {
   const roleMap = new Map<string, bigint>();
 
-  for (const roleName of Object.values(ROLES)) {
+  for (const roleName of ROLES) {
     const role = await prisma.role.upsert({
       where: { name: roleName },
       update: {},
@@ -145,11 +132,9 @@ async function upsertRoles() {
   return roleMap;
 }
 
-async function upsertPermissions() {
-  const permissionMap = new Map<string, bigint>();
-
+async function upsertPermissions(): Promise<void> {
   for (const permission of PERMISSIONS) {
-    const savedPermission = await prisma.permission.upsert({
+    await prisma.permission.upsert({
       where: { code: permission.code },
       update: {
         description: permission.description,
@@ -159,127 +144,111 @@ async function upsertPermissions() {
         description: permission.description,
       },
     });
-
-    permissionMap.set(savedPermission.code, savedPermission.id);
   }
-
-  return permissionMap;
 }
 
-async function syncRolePermissions(
+async function ensureInitialAdmin(
   roleMap: Map<string, bigint>,
-  permissionMap: Map<string, bigint>,
-) {
-  for (const [roleName, permissionCodes] of Object.entries(ROLE_PERMISSIONS)) {
-    const roleId = roleMap.get(roleName);
+  config: AdminSeedConfig,
+): Promise<{ created: boolean; username: string }> {
+  const adminRoleId = roleMap.get("ADMIN");
 
-    if (!roleId) {
-      throw new Error(`Rol no encontrado: ${roleName}`);
-    }
-
-    const permissionIds = permissionCodes.map((code) => {
-      const permissionId = permissionMap.get(code);
-      if (!permissionId) {
-        throw new Error(`Permiso no encontrado: ${code}`);
-      }
-      return permissionId;
-    });
-
-    await prisma.rolePermission.deleteMany({
-      where: { roleId },
-    });
-
-    if (permissionIds.length > 0) {
-      await prisma.rolePermission.createMany({
-        data: permissionIds.map((permissionId) => ({
-          roleId,
-          permissionId,
-        })),
-        skipDuplicates: true,
-      });
-    }
+  if (!adminRoleId) {
+    throw new Error("No se pudo resolver el rol ADMIN.");
   }
-}
 
-async function upsertUser(
-  username: string,
-  firstName: string,
-  lastName: string,
-  password: string,
-) {
-  const passwordHash = await bcrypt.hash(password, 12);
-
-  return prisma.user.upsert({
-    where: { username },
-    update: {
-      firstName,
-      lastName,
-      passwordHash,
-      isActive: true,
+  let user = await prisma.user.findUnique({
+    where: {
+      username: config.username,
     },
+  });
+
+  let created = false;
+
+  if (!user) {
+    if (!config.password) {
+      throw new Error(
+        "SEED_ADMIN_PASSWORD es obligatoria cuando el administrador inicial todavía no existe.",
+      );
+    }
+
+    validateNewAdminPassword(config.password);
+
+    const passwordHash = await bcrypt.hash(config.password, 12);
+
+    user = await prisma.user.create({
+      data: {
+        username: config.username,
+        passwordHash,
+        firstName: config.firstName,
+        lastName: config.lastName,
+        isActive: true,
+      },
+    });
+
+    created = true;
+  } else {
+    user = await prisma.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        firstName: config.firstName,
+        lastName: config.lastName,
+        isActive: true,
+      },
+    });
+  }
+
+  await prisma.userRole.upsert({
+    where: {
+      userId_roleId: {
+        userId: user.id,
+        roleId: adminRoleId,
+      },
+    },
+    update: {},
     create: {
-      username,
-      firstName,
-      lastName,
-      passwordHash,
-      isActive: true,
+      userId: user.id,
+      roleId: adminRoleId,
     },
   });
+
+  return {
+    created,
+    username: user.username,
+  };
 }
 
-async function syncUserRole(userId: bigint, roleId: bigint) {
-  await prisma.userRole.deleteMany({
-    where: { userId },
-  });
-
-  await prisma.userRole.create({
-    data: {
-      userId,
-      roleId,
-    },
-  });
-}
-
-async function main() {
+async function main(): Promise<void> {
+  const adminConfig = getAdminSeedConfig();
   const roleMap = await upsertRoles();
-  const permissionMap = await upsertPermissions();
 
-  await syncRolePermissions(roleMap, permissionMap);
+  await upsertPermissions();
 
-  const demoUsers = getDemoUsers();
+  const adminResult = await ensureInitialAdmin(
+    roleMap,
+    adminConfig,
+  );
 
-  for (const demoUser of demoUsers) {
-    const roleId = roleMap.get(demoUser.roleName);
-
-    if (!roleId) {
-      throw new Error(`No se pudo resolver el rol ${demoUser.roleName}`);
-    }
-
-    const user = await upsertUser(
-      demoUser.username,
-      demoUser.firstName,
-      demoUser.lastName,
-      demoUser.password,
-    );
-
-    await syncUserRole(user.id, roleId);
-  }
-
-  console.log(" Seed RBAC completado.");
-  console.log("Usuarios demo creados/actualizados:");
-
-  for (const user of demoUsers) {
-    console.log(`- ${user.username} / ${user.password} (${user.roleName})`);
-  }
-
+  console.log("Seed RBAC oficial completado correctamente.");
+  console.log(`Administrador: ${adminResult.username}`);
   console.log(
-    "Puedes sobrescribir contraseñas con SEED_ADMIN_PASSWORD, SEED_WAITER_PASSWORD, SEED_KITCHEN_PASSWORD y SEED_CASHIER_PASSWORD.",
+    adminResult.created
+      ? "La cuenta ADMIN inicial fue creada."
+      : "La cuenta ADMIN ya existía; su contraseña fue conservada.",
+  );
+  console.log(
+    "Roles disponibles: ADMIN, MANAGER, MESERO, COCINA y CAJA.",
+  );
+  console.log(
+    "Los permisos de MANAGER se asignarán posteriormente desde la administración de accesos.",
   );
 }
 
 main()
-  .catch((error) => {
-    console.error(" Error ejecutando seed-rbac:", error);
+  .catch((error: unknown) => {
+    console.error("Error ejecutando seed-rbac:", error);
     process.exitCode = 1;
   })
   .finally(async () => {
