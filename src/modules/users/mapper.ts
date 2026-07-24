@@ -9,6 +9,11 @@ export interface UserPermissionDto {
 export interface UserRoleDto {
   id: string;
   name: string;
+
+  /**
+   * Se conserva vacío para mantener compatibilidad temporal con el frontend.
+   * Los permisos pertenecen directamente al usuario.
+   */
   permissions: UserPermissionDto[];
 }
 
@@ -25,30 +30,21 @@ export interface UserResponseDto {
 }
 
 export function toUserResponse(record: UserRecord): UserResponseDto {
-  const permissionMap = new Map<string, UserPermissionDto>();
-
   const roles: UserRoleDto[] = record.userRoles
-    .map((userRole) => {
-      const rolePermissions = userRole.role.rolePermissions.map(
-        (rolePermission) => {
-          const permission: UserPermissionDto = {
-            id: rolePermission.permission.id.toString(),
-            code: rolePermission.permission.code,
-            description: rolePermission.permission.description ?? null,
-          };
-
-          permissionMap.set(permission.code, permission);
-          return permission;
-        },
-      );
-
-      return {
-        id: userRole.role.id.toString(),
-        name: userRole.role.name,
-        permissions: rolePermissions,
-      };
-    })
+    .map((userRole) => ({
+      id: userRole.role.id.toString(),
+      name: userRole.role.name,
+      permissions: [],
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  const permissions: UserPermissionDto[] = record.userPermissions
+    .map((userPermission) => ({
+      id: userPermission.permission.id.toString(),
+      code: userPermission.permission.code,
+      description: userPermission.permission.description ?? null,
+    }))
+    .sort((a, b) => a.code.localeCompare(b.code));
 
   return {
     id: record.id.toString(),
@@ -59,8 +55,6 @@ export function toUserResponse(record: UserRecord): UserResponseDto {
     isActive: record.isActive,
     createdAt: record.createdAt.toISOString(),
     roles,
-    permissions: Array.from(permissionMap.values()).sort((a, b) =>
-      a.code.localeCompare(b.code),
-    ),
+    permissions,
   };
 }

@@ -15,17 +15,17 @@ const userSelect = Prisma.validator<Prisma.UserDefaultArgs>()({
           select: {
             id: true,
             name: true,
-            rolePermissions: {
-              select: {
-                permission: {
-                  select: {
-                    id: true,
-                    code: true,
-                    description: true,
-                  },
-                },
-              },
-            },
+          },
+        },
+      },
+    },
+    userPermissions: {
+      select: {
+        permission: {
+          select: {
+            id: true,
+            code: true,
+            description: true,
           },
         },
       },
@@ -63,6 +63,27 @@ export interface RoleLookupRecord {
   name: string;
 }
 
+export interface PermissionLookupRecord {
+  id: bigint;
+  code: string;
+}
+
+async function findHydratedUserOrThrow(
+  tx: Prisma.TransactionClient,
+  userId: bigint,
+): Promise<UserRecord> {
+  const user = await tx.user.findUnique({
+    where: { id: userId },
+    ...userSelect,
+  });
+
+  if (!user) {
+    throw new Error("No se pudo recargar el usuario actualizado.");
+  }
+
+  return user;
+}
+
 export async function listUsers(
   filters: ListUsersFilters,
 ): Promise<UserRecord[]> {
@@ -90,12 +111,18 @@ export async function listUsers(
           }
         : {}),
     },
-    orderBy: [{ firstName: "asc" }, { lastName: "asc" }, { username: "asc" }],
+    orderBy: [
+      { firstName: "asc" },
+      { lastName: "asc" },
+      { username: "asc" },
+    ],
     ...userSelect,
   });
 }
 
-export async function findUserById(id: bigint): Promise<UserRecord | null> {
+export async function findUserById(
+  id: bigint,
+): Promise<UserRecord | null> {
   return prisma.user.findUnique({
     where: { id },
     ...userSelect,
@@ -104,14 +131,16 @@ export async function findUserById(id: bigint): Promise<UserRecord | null> {
 
 export async function findUserByUsername(
   username: string,
-): Promise<(UserRecord & { id: bigint }) | null> {
+): Promise<UserRecord | null> {
   return prisma.user.findUnique({
     where: { username },
     ...userSelect,
   });
 }
 
-export async function findRolesByIds(roleIds: bigint[]): Promise<RoleLookupRecord[]> {
+export async function findRolesByIds(
+  roleIds: bigint[],
+): Promise<RoleLookupRecord[]> {
   return prisma.role.findMany({
     where: {
       id: {
@@ -124,6 +153,29 @@ export async function findRolesByIds(roleIds: bigint[]): Promise<RoleLookupRecor
     },
     orderBy: {
       name: "asc",
+    },
+  });
+}
+
+export async function findPermissionsByIds(
+  permissionIds: bigint[],
+): Promise<PermissionLookupRecord[]> {
+  if (permissionIds.length === 0) {
+    return [];
+  }
+
+  return prisma.permission.findMany({
+    where: {
+      id: {
+        in: permissionIds,
+      },
+    },
+    select: {
+      id: true,
+      code: true,
+    },
+    orderBy: {
+      code: "asc",
     },
   });
 }
@@ -150,18 +202,10 @@ export async function createUser(
         userId: createdUser.id,
         roleId,
       })),
+      skipDuplicates: true,
     });
 
-    const hydratedUser = await tx.user.findUnique({
-      where: { id: createdUser.id },
-      ...userSelect,
-    });
-
-    if (!hydratedUser) {
-      throw new Error("No se pudo recargar el usuario recién creado.");
-    }
-
-    return hydratedUser;
+    return findHydratedUserOrThrow(tx, createdUser.id);
   });
 }
 
@@ -175,22 +219,14 @@ export async function updateUser(
       data,
     });
 
-    const hydratedUser = await tx.user.findUnique({
-      where: { id },
-      ...userSelect,
-    });
-
-    if (!hydratedUser) {
-      throw new Error("No se pudo recargar el usuario actualizado.");
-    }
-
-    return hydratedUser;
+    return findHydratedUserOrThrow(tx, id);
   });
 }
 
 export async function replaceUserRoles(
   userId: bigint,
   roleIds: bigint[],
+  clearPermissions: boolean,
 ): Promise<UserRecord> {
   return prisma.$transaction(async (tx) => {
     await tx.userRole.deleteMany({
@@ -202,18 +238,41 @@ export async function replaceUserRoles(
         userId,
         roleId,
       })),
+      skipDuplicates: true,
     });
 
-    const hydratedUser = await tx.user.findUnique({
-      where: { id: userId },
-      ...userSelect,
-    });
-
-    if (!hydratedUser) {
-      throw new Error("No se pudo recargar el usuario actualizado.");
+    if (clearPermissions) {
+      await tx.userPermission.deleteMany({
+        where: { userId },
+      });
     }
 
-    return hydratedUser;
+    return findHydratedUserOrThrow(tx, userId);
+  });
+}
+
+export async function replaceUserPermissions(
+  userId: bigint,
+  permissionIds: bigint[],
+  grantedBy: bigint,
+): Promise<UserRecord> {
+  return prisma.$transaction(async (tx) => {
+    await tx.userPermission.deleteMany({
+      where: { userId },
+    });
+
+    if (permissionIds.length > 0) {
+      await tx.userPermission.createMany({
+        data: permissionIds.map((permissionId) => ({
+          userId,
+          permissionId,
+          grantedBy,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    return findHydratedUserOrThrow(tx, userId);
   });
 }
 

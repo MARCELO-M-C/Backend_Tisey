@@ -33,10 +33,9 @@ model User {
 }
 
 model Role {
-  id              BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
-  name            String           @unique(map: "name") @db.VarChar(50)
-  rolePermissions RolePermission[]
-  userRoles       UserRole[]
+  id        BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
+  name      String     @unique(map: "name") @db.VarChar(50)
+  userRoles UserRole[]
 
   @@map("roles")
 }
@@ -45,7 +44,6 @@ model Permission {
   id              BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
   code            String           @unique(map: "code") @db.VarChar(80)
   description     String?          @db.VarChar(255)
-  rolePermissions RolePermission[]
   userPermissions UserPermission[]
 
   @@map("permissions")
@@ -75,17 +73,6 @@ model UserPermission {
   @@index([permissionId], map: "idx_user_permissions_permission")
   @@index([grantedBy], map: "idx_user_permissions_granted_by")
   @@map("user_permissions")
-}
-
-model RolePermission {
-  roleId       BigInt     @map("role_id") @db.UnsignedBigInt
-  permissionId BigInt     @map("permission_id") @db.UnsignedBigInt
-  permission   Permission @relation(fields: [permissionId], references: [id], onUpdate: Restrict, map: "fk_rp_perm")
-  role         Role       @relation(fields: [roleId], references: [id], onUpdate: Restrict, map: "fk_rp_role")
-
-  @@id([roleId, permissionId])
-  @@index([permissionId], map: "fk_rp_perm")
-  @@map("role_permissions")
 }
 
 model Station {

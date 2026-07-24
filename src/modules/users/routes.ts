@@ -1,15 +1,19 @@
 import type { FastifyPluginAsync } from "fastify";
-import { authorizePermissions } from "../auth/service";
+import { authorizeRoles } from "../auth/service";
 import {
   createUserController,
   getUserByIdController,
   listUsersController,
+  replaceUserPermissionsController,
   replaceUserRolesController,
   updateUserController,
   updateUserStatusController,
 } from "./controller";
 
-const requireUsersManage = authorizePermissions(["users:manage"]);
+const requireAdmin = authorizeRoles(
+  ["ADMIN"],
+  { adminBypass: false },
+);
 
 const digitStringSchema = {
   type: "string",
@@ -29,7 +33,10 @@ const permissionSchema = {
     id: { type: "string" },
     code: { type: "string" },
     description: {
-      anyOf: [{ type: "string" }, { type: "null" }],
+      anyOf: [
+        { type: "string" },
+        { type: "null" },
+      ],
     },
   },
 };
@@ -120,7 +127,13 @@ const listUsersQuerystringSchema = {
 const createUserBodySchema = {
   type: "object",
   additionalProperties: false,
-  required: ["username", "password", "firstName", "lastName", "roleIds"],
+  required: [
+    "username",
+    "password",
+    "firstName",
+    "lastName",
+    "roleIds",
+  ],
   properties: {
     username: {
       type: "string",
@@ -197,6 +210,18 @@ const replaceUserRolesBodySchema = {
   },
 };
 
+const replaceUserPermissionsBodySchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["permissionIds"],
+  properties: {
+    permissionIds: {
+      type: "array",
+      items: positiveBodyIdSchema,
+    },
+  },
+};
+
 const updateUserStatusBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -212,7 +237,7 @@ const usersRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/",
     {
-      onRequest: [requireUsersManage],
+      onRequest: [requireAdmin],
       schema: {
         tags: ["Users"],
         summary: "Listar usuarios",
@@ -234,7 +259,7 @@ const usersRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/:id",
     {
-      onRequest: [requireUsersManage],
+      onRequest: [requireAdmin],
       schema: {
         tags: ["Users"],
         summary: "Obtener usuario por id",
@@ -254,7 +279,7 @@ const usersRoutes: FastifyPluginAsync = async (app) => {
   app.post(
     "/",
     {
-      onRequest: [requireUsersManage],
+      onRequest: [requireAdmin],
       schema: {
         tags: ["Users"],
         summary: "Crear usuario",
@@ -275,7 +300,7 @@ const usersRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
     "/:id",
     {
-      onRequest: [requireUsersManage],
+      onRequest: [requireAdmin],
       schema: {
         tags: ["Users"],
         summary: "Actualizar datos básicos de un usuario",
@@ -298,7 +323,7 @@ const usersRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
     "/:id/status",
     {
-      onRequest: [requireUsersManage],
+      onRequest: [requireAdmin],
       schema: {
         tags: ["Users"],
         summary: "Activar o desactivar un usuario",
@@ -320,7 +345,7 @@ const usersRoutes: FastifyPluginAsync = async (app) => {
   app.put(
     "/:id/roles",
     {
-      onRequest: [requireUsersManage],
+      onRequest: [requireAdmin],
       schema: {
         tags: ["Users"],
         summary: "Reemplazar roles de un usuario",
@@ -337,6 +362,29 @@ const usersRoutes: FastifyPluginAsync = async (app) => {
       },
     },
     replaceUserRolesController,
+  );
+
+  app.put(
+    "/:id/permissions",
+    {
+      onRequest: [requireAdmin],
+      schema: {
+        tags: ["Users"],
+        summary: "Reemplazar permisos individuales de un MANAGER",
+        security: [{ bearerAuth: [] }],
+        params: userIdParamsSchema,
+        body: replaceUserPermissionsBodySchema,
+        response: {
+          200: userResponseSchema,
+          400: basicErrorSchema,
+          401: basicErrorSchema,
+          403: basicErrorSchema,
+          404: basicErrorSchema,
+          409: basicErrorSchema,
+        },
+      },
+    },
+    replaceUserPermissionsController,
   );
 };
 

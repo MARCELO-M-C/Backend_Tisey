@@ -1,22 +1,19 @@
 import type { FastifyPluginAsync } from "fastify";
-import { authenticateRequest } from "../auth/service";
+import { authorizeRoles } from "../auth/service";
 import {
-  createRoleController,
   getRoleByIdController,
   listPermissionsController,
   listRolesController,
-  updateRoleController,
-  updateRolePermissionsController,
 } from "./controller";
+
+const requireAdmin = authorizeRoles(
+  ["ADMIN"],
+  { adminBypass: false },
+);
 
 const digitStringSchema = {
   type: "string",
   pattern: "^[0-9]+$",
-};
-
-const positiveBodyIdSchema = {
-  type: "integer",
-  minimum: 1,
 };
 
 const basicErrorSchema = {
@@ -37,7 +34,10 @@ const permissionResponseSchema = {
     id: { type: "string" },
     code: { type: "string" },
     description: {
-      anyOf: [{ type: "string" }, { type: "null" }],
+      anyOf: [
+        { type: "string" },
+        { type: "null" },
+      ],
     },
   },
 };
@@ -45,16 +45,11 @@ const permissionResponseSchema = {
 const roleResponseSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["id", "name", "usersCount", "permissionsCount", "permissions"],
+  required: ["id", "name", "usersCount"],
   properties: {
     id: { type: "string" },
     name: { type: "string" },
     usersCount: { type: "integer" },
-    permissionsCount: { type: "integer" },
-    permissions: {
-      type: "array",
-      items: permissionResponseSchema,
-    },
   },
 };
 
@@ -71,40 +66,10 @@ const listRolesQuerystringSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
-    search: { type: "string", minLength: 1, maxLength: 80 },
-  },
-};
-
-const createRoleBodySchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["name"],
-  properties: {
-    name: { type: "string", minLength: 1, maxLength: 50 },
-    permissionIds: {
-      type: "array",
-      items: positiveBodyIdSchema,
-    },
-  },
-};
-
-const updateRoleBodySchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["name"],
-  properties: {
-    name: { type: "string", minLength: 1, maxLength: 50 },
-  },
-};
-
-const updateRolePermissionsBodySchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["permissionIds"],
-  properties: {
-    permissionIds: {
-      type: "array",
-      items: positiveBodyIdSchema,
+    search: {
+      type: "string",
+      minLength: 1,
+      maxLength: 80,
     },
   },
 };
@@ -113,10 +78,10 @@ const rolesRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireAdmin],
       schema: {
         tags: ["Roles"],
-        summary: "Listar roles",
+        summary: "Listar roles del sistema",
         security: [{ bearerAuth: [] }],
         querystring: listRolesQuerystringSchema,
         response: {
@@ -125,6 +90,7 @@ const rolesRoutes: FastifyPluginAsync = async (app) => {
             items: roleResponseSchema,
           },
           401: basicErrorSchema,
+          403: basicErrorSchema,
         },
       },
     },
@@ -134,10 +100,10 @@ const rolesRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/permissions",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireAdmin],
       schema: {
         tags: ["Roles"],
-        summary: "Listar permisos disponibles",
+        summary: "Listar permisos asignables a MANAGER",
         security: [{ bearerAuth: [] }],
         response: {
           200: {
@@ -145,6 +111,7 @@ const rolesRoutes: FastifyPluginAsync = async (app) => {
             items: permissionResponseSchema,
           },
           401: basicErrorSchema,
+          403: basicErrorSchema,
         },
       },
     },
@@ -154,7 +121,7 @@ const rolesRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/:roleId",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireAdmin],
       schema: {
         tags: ["Roles"],
         summary: "Obtener rol por id",
@@ -163,74 +130,12 @@ const rolesRoutes: FastifyPluginAsync = async (app) => {
         response: {
           200: roleResponseSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
         },
       },
     },
     getRoleByIdController,
-  );
-
-  app.post(
-    "/",
-    {
-      onRequest: [authenticateRequest],
-      schema: {
-        tags: ["Roles"],
-        summary: "Crear rol",
-        security: [{ bearerAuth: [] }],
-        body: createRoleBodySchema,
-        response: {
-          201: roleResponseSchema,
-          400: basicErrorSchema,
-          401: basicErrorSchema,
-          409: basicErrorSchema,
-        },
-      },
-    },
-    createRoleController,
-  );
-
-  app.patch(
-    "/:roleId",
-    {
-      onRequest: [authenticateRequest],
-      schema: {
-        tags: ["Roles"],
-        summary: "Actualizar rol",
-        security: [{ bearerAuth: [] }],
-        params: roleParamsSchema,
-        body: updateRoleBodySchema,
-        response: {
-          200: roleResponseSchema,
-          400: basicErrorSchema,
-          401: basicErrorSchema,
-          404: basicErrorSchema,
-          409: basicErrorSchema,
-        },
-      },
-    },
-    updateRoleController,
-  );
-
-  app.patch(
-    "/:roleId/permissions",
-    {
-      onRequest: [authenticateRequest],
-      schema: {
-        tags: ["Roles"],
-        summary: "Reemplazar permisos del rol",
-        security: [{ bearerAuth: [] }],
-        params: roleParamsSchema,
-        body: updateRolePermissionsBodySchema,
-        response: {
-          200: roleResponseSchema,
-          400: basicErrorSchema,
-          401: basicErrorSchema,
-          404: basicErrorSchema,
-        },
-      },
-    },
-    updateRolePermissionsController,
   );
 };
 

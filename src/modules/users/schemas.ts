@@ -55,6 +55,12 @@ export const replaceUserRolesBodySchema = z
   })
   .strict();
 
+export const replaceUserPermissionsBodySchema = z
+  .object({
+    permissionIds: z.array(bigintIdSchema),
+  })
+  .strict();
+
 export const updateUserStatusBodySchema = z
   .object({
     isActive: z.boolean(),
@@ -65,5 +71,12 @@ export type UserIdParamsInput = z.infer<typeof userIdParamSchema>;
 export type ListUsersQueryInput = z.infer<typeof listUsersQuerySchema>;
 export type CreateUserBodyInput = z.infer<typeof createUserBodySchema>;
 export type UpdateUserBodyInput = z.infer<typeof updateUserBodySchema>;
-export type ReplaceUserRolesBodyInput = z.infer<typeof replaceUserRolesBodySchema>;
-export type UpdateUserStatusBodyInput = z.infer<typeof updateUserStatusBodySchema>;
+export type ReplaceUserRolesBodyInput = z.infer<
+  typeof replaceUserRolesBodySchema
+>;
+export type ReplaceUserPermissionsBodyInput = z.infer<
+  typeof replaceUserPermissionsBodySchema
+>;
+export type UpdateUserStatusBodyInput = z.infer<
+  typeof updateUserStatusBodySchema
+>;

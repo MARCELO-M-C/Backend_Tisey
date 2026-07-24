@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import {
   createUserBodySchema,
   listUsersQuerySchema,
+  replaceUserPermissionsBodySchema,
   replaceUserRolesBodySchema,
   updateUserBodySchema,
   updateUserStatusBodySchema,
@@ -13,6 +14,7 @@ import {
   createUser,
   getUserById,
   listUsers,
+  replaceUserPermissions,
   replaceUserRoles,
   updateUser,
   updateUserStatus,
@@ -85,7 +87,6 @@ export async function updateUserController(
   try {
     const params = userIdParamSchema.parse(request.params);
     const body = updateUserBodySchema.parse(request.body);
-
     const user = await updateUser(params.id, body);
 
     return reply.status(200).send(user);
@@ -101,8 +102,28 @@ export async function replaceUserRolesController(
   try {
     const params = userIdParamSchema.parse(request.params);
     const body = replaceUserRolesBodySchema.parse(request.body);
-
     const user = await replaceUserRoles(params.id, body);
+
+    return reply.status(200).send(user);
+  } catch (error) {
+    return handleUsersError(reply, error);
+  }
+}
+
+export async function replaceUserPermissionsController(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  try {
+    const params = userIdParamSchema.parse(request.params);
+    const body = replaceUserPermissionsBodySchema.parse(request.body);
+    const grantedBy = BigInt(request.user.sub);
+
+    const user = await replaceUserPermissions(
+      params.id,
+      body,
+      grantedBy,
+    );
 
     return reply.status(200).send(user);
   } catch (error) {

@@ -4,10 +4,14 @@ import * as usersRepository from "./repository";
 import type {
   CreateUserBodyInput,
   ListUsersQueryInput,
+  ReplaceUserPermissionsBodyInput,
   ReplaceUserRolesBodyInput,
   UpdateUserBodyInput,
   UpdateUserStatusBodyInput,
 } from "./schemas";
+
+const ADMIN_ROLE = "ADMIN";
+const MANAGER_ROLE = "MANAGER";
 
 export class UsersServiceError extends Error {
   constructor(
@@ -21,10 +25,25 @@ export class UsersServiceError extends Error {
 }
 
 function dedupeBigIntArray(values: bigint[]): bigint[] {
-  return Array.from(new Map(values.map((value) => [value.toString(), value])).values());
+  return Array.from(
+    new Map(
+      values.map((value) => [value.toString(), value]),
+    ).values(),
+  );
 }
 
-async function ensureUserExists(userId: bigint) {
+function userHasRole(
+  user: usersRepository.UserRecord,
+  roleName: string,
+): boolean {
+  return user.userRoles.some(
+    (userRole) => userRole.role.name === roleName,
+  );
+}
+
+async function ensureUserExists(
+  userId: bigint,
+): Promise<usersRepository.UserRecord> {
   const user = await usersRepository.findUserById(userId);
 
   if (!user) {
@@ -38,12 +57,18 @@ async function ensureUserExists(userId: bigint) {
   return user;
 }
 
-async function ensureRolesExist(roleIds: bigint[]) {
+async function resolveRoles(roleIds: bigint[]): Promise<{
+  roleIds: bigint[];
+  roles: usersRepository.RoleLookupRecord[];
+}> {
   const uniqueRoleIds = dedupeBigIntArray(roleIds);
   const roles = await usersRepository.findRolesByIds(uniqueRoleIds);
 
   if (roles.length !== uniqueRoleIds.length) {
-    const foundIds = new Set(roles.map((role) => role.id.toString()));
+    const foundIds = new Set(
+      roles.map((role) => role.id.toString()),
+    );
+
     const missingIds = uniqueRoleIds
       .map((roleId) => roleId.toString())
       .filter((roleId) => !foundIds.has(roleId));
@@ -55,7 +80,60 @@ async function ensureRolesExist(roleIds: bigint[]) {
     );
   }
 
-  return uniqueRoleIds;
+  return {
+    roleIds: uniqueRoleIds,
+    roles,
+  };
+}
+
+async function resolvePermissionIds(
+  permissionIds: bigint[],
+): Promise<bigint[]> {
+  const uniquePermissionIds = dedupeBigIntArray(permissionIds);
+  const permissions =
+    await usersRepository.findPermissionsByIds(
+      uniquePermissionIds,
+    );
+
+  if (permissions.length !== uniquePermissionIds.length) {
+    const foundIds = new Set(
+      permissions.map((permission) =>
+        permission.id.toString(),
+      ),
+    );
+
+    const missingIds = uniquePermissionIds
+      .map((permissionId) => permissionId.toString())
+      .filter((permissionId) => !foundIds.has(permissionId));
+
+    throw new UsersServiceError(
+      400,
+      "PERMISSION_NOT_FOUND",
+      `Permisos no encontrados: ${missingIds.join(", ")}.`,
+    );
+  }
+
+  return uniquePermissionIds;
+}
+
+function ensureManagerCanReceivePermissions(
+  user: usersRepository.UserRecord,
+): void {
+  if (userHasRole(user, ADMIN_ROLE)) {
+    throw new UsersServiceError(
+      409,
+      "ADMIN_PERMISSIONS_ARE_IMPLICIT",
+      "ADMIN tiene acceso total y no utiliza permisos individuales.",
+    );
+  }
+
+  if (!userHasRole(user, MANAGER_ROLE)) {
+    throw new UsersServiceError(
+      409,
+      "USER_IS_NOT_MANAGER",
+      "Solo los usuarios con rol MANAGER pueden recibir permisos administrativos.",
+    );
+  }
 }
 
 export async function listUsers(
@@ -65,7 +143,9 @@ export async function listUsers(
   return users.map(toUserResponse);
 }
 
-export async function getUserById(userId: bigint): Promise<UserResponseDto> {
+export async function getUserById(
+  userId: bigint,
+): Promise<UserResponseDto> {
   const user = await ensureUserExists(userId);
   return toUserResponse(user);
 }
@@ -75,7 +155,9 @@ export async function createUser(
 ): Promise<UserResponseDto> {
   const username = input.username.trim();
 
-  const existingUser = await usersRepository.findUserByUsername(username);
+  const existingUser =
+    await usersRepository.findUserByUsername(username);
+
   if (existingUser) {
     throw new UsersServiceError(
       409,
@@ -84,7 +166,7 @@ export async function createUser(
     );
   }
 
-  const roleIds = await ensureRolesExist(input.roleIds);
+  const { roleIds } = await resolveRoles(input.roleIds);
   const passwordHash = await bcrypt.hash(input.password, 12);
 
   const createdUser = await usersRepository.createUser({
@@ -106,10 +188,17 @@ export async function updateUser(
   const currentUser = await ensureUserExists(userId);
   const nextUsername = input.username?.trim();
 
-  if (nextUsername && nextUsername !== currentUser.username) {
-    const duplicatedUser = await usersRepository.findUserByUsername(nextUsername);
+  if (
+    nextUsername &&
+    nextUsername !== currentUser.username
+  ) {
+    const duplicatedUser =
+      await usersRepository.findUserByUsername(nextUsername);
 
-    if (duplicatedUser && duplicatedUser.id !== userId) {
+    if (
+      duplicatedUser &&
+      duplicatedUser.id !== userId
+    ) {
       throw new UsersServiceError(
         409,
         "USERNAME_ALREADY_EXISTS",
@@ -120,16 +209,29 @@ export async function updateUser(
 
   const data: usersRepository.UpdateUserRepositoryInput = {
     ...(nextUsername ? { username: nextUsername } : {}),
-    ...(input.firstName ? { firstName: input.firstName.trim() } : {}),
-    ...(input.lastName ? { lastName: input.lastName.trim() } : {}),
-    ...(typeof input.isActive === "boolean" ? { isActive: input.isActive } : {}),
+    ...(input.firstName
+      ? { firstName: input.firstName.trim() }
+      : {}),
+    ...(input.lastName
+      ? { lastName: input.lastName.trim() }
+      : {}),
+    ...(typeof input.isActive === "boolean"
+      ? { isActive: input.isActive }
+      : {}),
   };
 
   if (input.password) {
-    data.passwordHash = await bcrypt.hash(input.password, 12);
+    data.passwordHash = await bcrypt.hash(
+      input.password,
+      12,
+    );
   }
 
-  const updatedUser = await usersRepository.updateUser(userId, data);
+  const updatedUser = await usersRepository.updateUser(
+    userId,
+    data,
+  );
+
   return toUserResponse(updatedUser);
 }
 
@@ -138,9 +240,52 @@ export async function replaceUserRoles(
   input: ReplaceUserRolesBodyInput,
 ): Promise<UserResponseDto> {
   await ensureUserExists(userId);
-  const roleIds = await ensureRolesExist(input.roleIds);
 
-  const updatedUser = await usersRepository.replaceUserRoles(userId, roleIds);
+  const { roleIds, roles } = await resolveRoles(
+    input.roleIds,
+  );
+
+  const hasManagerRole = roles.some(
+    (role) => role.name === MANAGER_ROLE,
+  );
+
+  const hasAdminRole = roles.some(
+    (role) => role.name === ADMIN_ROLE,
+  );
+
+  const canKeepIndividualPermissions =
+    hasManagerRole && !hasAdminRole;
+
+  const updatedUser =
+    await usersRepository.replaceUserRoles(
+      userId,
+      roleIds,
+      !canKeepIndividualPermissions,
+    );
+
+  return toUserResponse(updatedUser);
+}
+
+export async function replaceUserPermissions(
+  userId: bigint,
+  input: ReplaceUserPermissionsBodyInput,
+  grantedBy: bigint,
+): Promise<UserResponseDto> {
+  const targetUser = await ensureUserExists(userId);
+
+  ensureManagerCanReceivePermissions(targetUser);
+
+  const permissionIds = await resolvePermissionIds(
+    input.permissionIds,
+  );
+
+  const updatedUser =
+    await usersRepository.replaceUserPermissions(
+      userId,
+      permissionIds,
+      grantedBy,
+    );
+
   return toUserResponse(updatedUser);
 }
 
@@ -150,10 +295,11 @@ export async function updateUserStatus(
 ): Promise<UserResponseDto> {
   await ensureUserExists(userId);
 
-  const updatedUser = await usersRepository.updateUserStatus(
-    userId,
-    input.isActive,
-  );
+  const updatedUser =
+    await usersRepository.updateUserStatus(
+      userId,
+      input.isActive,
+    );
 
   return toUserResponse(updatedUser);
 }
