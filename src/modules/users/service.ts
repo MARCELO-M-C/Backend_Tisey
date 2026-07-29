@@ -12,6 +12,15 @@ import type {
 
 const ADMIN_ROLE = "ADMIN";
 const MANAGER_ROLE = "MANAGER";
+const USERS_MANAGE_PERMISSION = "ADMIN_USERS_MANAGE";
+const ORDERS_MANAGE_PERMISSION = "ADMIN_ORDERS_MANAGE";
+const SHIFTS_STATIONS_MANAGE_PERMISSION =
+  "ADMIN_SHIFTS_&_STATIONS_MANAGE";
+const USER_READ_PERMISSIONS = [
+  USERS_MANAGE_PERMISSION,
+  ORDERS_MANAGE_PERMISSION,
+  SHIFTS_STATIONS_MANAGE_PERMISSION,
+];
 const OPERATIONAL_ROLES = new Set([
   "MESERO",
   "COCINA",
@@ -20,6 +29,7 @@ const OPERATIONAL_ROLES = new Set([
 
 export interface UserManagementActor {
   roles: string[];
+  permissions: string[];
 }
 
 export class UsersServiceError extends Error {
@@ -68,6 +78,19 @@ function actorHasRole(
   );
 }
 
+function actorHasPermission(
+  actor: UserManagementActor,
+  permissionCode: string,
+): boolean {
+  const normalizedPermissionCode =
+    normalizeRoleName(permissionCode);
+
+  return actor.permissions.some(
+    (actorPermission) =>
+      normalizeRoleName(actorPermission) === normalizedPermissionCode,
+  );
+}
+
 function ensureActorIsAdminOrManager(
   actor: UserManagementActor,
 ): void {
@@ -82,6 +105,30 @@ function ensureActorIsAdminOrManager(
     403,
     "USER_MANAGEMENT_FORBIDDEN",
     "No tienes autorización para gestionar usuarios.",
+  );
+}
+
+function ensureActorCanReadUsers(
+  actor: UserManagementActor,
+): void {
+  if (actorHasRole(actor, ADMIN_ROLE)) {
+    return;
+  }
+
+  ensureActorIsAdminOrManager(actor);
+
+  if (
+    USER_READ_PERMISSIONS.some((permission) =>
+      actorHasPermission(actor, permission),
+    )
+  ) {
+    return;
+  }
+
+  throw new UsersServiceError(
+    403,
+    "USER_LIST_FORBIDDEN",
+    "No tienes autorización para consultar usuarios.",
   );
 }
 
@@ -221,9 +268,24 @@ function ensureManagerCanReceivePermissions(
 }
 export async function listUsers(
   filters: ListUsersQueryInput,
+  actor: UserManagementActor,
 ): Promise<UserResponseDto[]> {
+  ensureActorCanReadUsers(actor);
+
   const users = await usersRepository.listUsers(filters);
-  return users.map(toUserResponse);
+  const canViewAdministrativeUsers =
+    actorHasRole(actor, ADMIN_ROLE) ||
+    actorHasPermission(actor, USERS_MANAGE_PERMISSION);
+
+  const visibleUsers = canViewAdministrativeUsers
+    ? users
+    : users.filter(
+        (user) =>
+          !userHasRole(user, ADMIN_ROLE) &&
+          !userHasRole(user, MANAGER_ROLE),
+      );
+
+  return visibleUsers.map(toUserResponse);
 }
 
 export async function getUserById(

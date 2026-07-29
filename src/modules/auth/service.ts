@@ -79,6 +79,17 @@ function parseUserId(value: string): bigint {
   }
 }
 
+function toCurrentTokenPayload(user: AuthUserDto): AuthTokenPayload {
+  return {
+    sub: user.id,
+    username: user.username,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    roles: user.roles.map((role) => role.name),
+    permissions: user.permissions.map((permission) => permission.code),
+  };
+}
+
 export function requestUserHasRole(
   user: AuthTokenPayload,
   role: string,
@@ -197,6 +208,28 @@ export function authorizeAccess(rule: AuthorizationRule = {}) {
     } catch {
       reply.unauthorized("Token inválido o expirado.");
       return;
+    }
+
+    try {
+      /*
+       * Los permisos pueden cambiar mientras el JWT sigue vigente. Cuando una
+       * ruta depende de permisos individuales, se recarga el contexto actual
+       * desde la base de datos para evitar autorizar con claims obsoletos.
+       */
+      if (requiredPermissions.length > 0) {
+        const currentUser = await getCurrentUser(request.user.sub);
+        Object.assign(request.user, toCurrentTokenPayload(currentUser));
+      }
+    } catch (error) {
+      if (error instanceof AuthServiceError) {
+        reply.status(error.statusCode).send({
+          message: error.message,
+          code: error.code,
+        });
+        return;
+      }
+
+      throw error;
     }
 
     const user = request.user;

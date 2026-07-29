@@ -44,6 +44,7 @@ function getUserManagementActor(
 ): UserManagementActor {
   return {
     roles: request.user.roles,
+    permissions: request.user.permissions,
   };
 }
 
@@ -53,7 +54,8 @@ export async function listUsersController(
 ) {
   try {
     const query = listUsersQuerySchema.parse(request.query ?? {});
-    const users = await listUsers(query);
+    const actor = getUserManagementActor(request);
+    const users = await listUsers(query, actor);
 
     return reply.status(200).send(users);
   } catch (error) {

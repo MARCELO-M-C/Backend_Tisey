@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
+  authorizeAnyPermission,
   authorizePermissions,
   authorizeRoles,
 } from "../auth/service";
@@ -14,7 +15,15 @@ import {
 } from "./controller";
 
 const USERS_MANAGE_PERMISSION = "ADMIN_USERS_MANAGE";
+const ORDERS_MANAGE_PERMISSION = "ADMIN_ORDERS_MANAGE";
+const SHIFTS_STATIONS_MANAGE_PERMISSION =
+  "ADMIN_SHIFTS_&_STATIONS_MANAGE";
 
+const requireUsersRead = authorizeAnyPermission([
+  USERS_MANAGE_PERMISSION,
+  ORDERS_MANAGE_PERMISSION,
+  SHIFTS_STATIONS_MANAGE_PERMISSION,
+]);
 const requireUsersManage = authorizePermissions([
   USERS_MANAGE_PERMISSION,
 ]);
@@ -235,7 +244,7 @@ const usersRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/",
     {
-      onRequest: [requireUsersManage],
+      onRequest: [requireUsersRead],
       schema: {
         tags: ["Users"],
         summary: "Listar usuarios",
