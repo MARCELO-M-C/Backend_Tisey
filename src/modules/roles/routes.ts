@@ -1,11 +1,19 @@
 import type { FastifyPluginAsync } from "fastify";
-import { authorizeRoles } from "../auth/service";
+import {
+  authorizePermissions,
+  authorizeRoles,
+} from "../auth/service";
 import {
   getRoleByIdController,
   listPermissionsController,
   listRolesController,
 } from "./controller";
 
+const USERS_MANAGE_PERMISSION = "ADMIN_USERS_MANAGE";
+
+const requireUsersManage = authorizePermissions([
+  USERS_MANAGE_PERMISSION,
+]);
 const requireAdmin = authorizeRoles(
   ["ADMIN"],
   { adminBypass: false },
@@ -15,7 +23,6 @@ const digitStringSchema = {
   type: "string",
   pattern: "^[0-9]+$",
 };
-
 const basicErrorSchema = {
   type: "object",
   additionalProperties: true,
@@ -41,7 +48,6 @@ const permissionResponseSchema = {
     },
   },
 };
-
 const roleResponseSchema = {
   type: "object",
   additionalProperties: false,
@@ -61,7 +67,6 @@ const roleParamsSchema = {
     roleId: digitStringSchema,
   },
 };
-
 const listRolesQuerystringSchema = {
   type: "object",
   additionalProperties: false,
@@ -73,12 +78,11 @@ const listRolesQuerystringSchema = {
     },
   },
 };
-
 const rolesRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/",
     {
-      onRequest: [requireAdmin],
+      onRequest: [requireUsersManage],
       schema: {
         tags: ["Roles"],
         summary: "Listar roles del sistema",
@@ -96,7 +100,6 @@ const rolesRoutes: FastifyPluginAsync = async (app) => {
     },
     listRolesController,
   );
-
   app.get(
     "/permissions",
     {
@@ -117,11 +120,10 @@ const rolesRoutes: FastifyPluginAsync = async (app) => {
     },
     listPermissionsController,
   );
-
   app.get(
     "/:roleId",
     {
-      onRequest: [requireAdmin],
+      onRequest: [requireUsersManage],
       schema: {
         tags: ["Roles"],
         summary: "Obtener rol por id",

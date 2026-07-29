@@ -12,6 +12,15 @@ import type {
 
 const ADMIN_ROLE = "ADMIN";
 const MANAGER_ROLE = "MANAGER";
+const OPERATIONAL_ROLES = new Set([
+  "MESERO",
+  "COCINA",
+  "CAJA",
+]);
+
+export interface UserManagementActor {
+  roles: string[];
+}
 
 export class UsersServiceError extends Error {
   constructor(
@@ -24,6 +33,10 @@ export class UsersServiceError extends Error {
   }
 }
 
+function normalizeRoleName(roleName: string): string {
+  return roleName.trim().toUpperCase();
+}
+
 function dedupeBigIntArray(values: bigint[]): bigint[] {
   return Array.from(
     new Map(
@@ -31,14 +44,90 @@ function dedupeBigIntArray(values: bigint[]): bigint[] {
     ).values(),
   );
 }
-
 function userHasRole(
   user: usersRepository.UserRecord,
   roleName: string,
 ): boolean {
+  const normalizedRoleName = normalizeRoleName(roleName);
+
   return user.userRoles.some(
-    (userRole) => userRole.role.name === roleName,
+    (userRole) =>
+      normalizeRoleName(userRole.role.name) === normalizedRoleName,
   );
+}
+
+function actorHasRole(
+  actor: UserManagementActor,
+  roleName: string,
+): boolean {
+  const normalizedRoleName = normalizeRoleName(roleName);
+
+  return actor.roles.some(
+    (actorRole) =>
+      normalizeRoleName(actorRole) === normalizedRoleName,
+  );
+}
+
+function ensureActorIsAdminOrManager(
+  actor: UserManagementActor,
+): void {
+  if (
+    actorHasRole(actor, ADMIN_ROLE) ||
+    actorHasRole(actor, MANAGER_ROLE)
+  ) {
+    return;
+  }
+
+  throw new UsersServiceError(
+    403,
+    "USER_MANAGEMENT_FORBIDDEN",
+    "No tienes autorización para gestionar usuarios.",
+  );
+}
+
+function ensureActorCanManageTargetUser(
+  actor: UserManagementActor,
+  targetUser: usersRepository.UserRecord,
+): void {
+  if (actorHasRole(actor, ADMIN_ROLE)) {
+    return;
+  }
+
+  ensureActorIsAdminOrManager(actor);
+
+  if (
+    userHasRole(targetUser, ADMIN_ROLE) ||
+    userHasRole(targetUser, MANAGER_ROLE)
+  ) {
+    throw new UsersServiceError(
+      403,
+      "MANAGER_CANNOT_MANAGE_ADMINISTRATIVE_USER",
+      "Un MANAGER no puede modificar usuarios con rol ADMIN o MANAGER.",
+    );
+  }
+}
+
+function ensureActorCanAssignRoles(
+  actor: UserManagementActor,
+  roles: usersRepository.RoleLookupRecord[],
+): void {
+  if (actorHasRole(actor, ADMIN_ROLE)) {
+    return;
+  }
+
+  ensureActorIsAdminOrManager(actor);
+
+  const forbiddenRoles = roles
+    .map((role) => normalizeRoleName(role.name))
+    .filter((roleName) => !OPERATIONAL_ROLES.has(roleName));
+
+  if (forbiddenRoles.length > 0) {
+    throw new UsersServiceError(
+      403,
+      "MANAGER_CANNOT_ASSIGN_ADMINISTRATIVE_ROLE",
+      "Un MANAGER solo puede asignar los roles MESERO, COCINA y CAJA.",
+    );
+  }
 }
 
 async function ensureUserExists(
@@ -56,7 +145,6 @@ async function ensureUserExists(
 
   return user;
 }
-
 async function resolveRoles(roleIds: bigint[]): Promise<{
   roleIds: bigint[];
   roles: usersRepository.RoleLookupRecord[];
@@ -68,7 +156,6 @@ async function resolveRoles(roleIds: bigint[]): Promise<{
     const foundIds = new Set(
       roles.map((role) => role.id.toString()),
     );
-
     const missingIds = uniqueRoleIds
       .map((roleId) => roleId.toString())
       .filter((roleId) => !foundIds.has(roleId));
@@ -85,7 +172,6 @@ async function resolveRoles(roleIds: bigint[]): Promise<{
     roles,
   };
 }
-
 async function resolvePermissionIds(
   permissionIds: bigint[],
 ): Promise<bigint[]> {
@@ -101,7 +187,6 @@ async function resolvePermissionIds(
         permission.id.toString(),
       ),
     );
-
     const missingIds = uniquePermissionIds
       .map((permissionId) => permissionId.toString())
       .filter((permissionId) => !foundIds.has(permissionId));
@@ -115,7 +200,6 @@ async function resolvePermissionIds(
 
   return uniquePermissionIds;
 }
-
 function ensureManagerCanReceivePermissions(
   user: usersRepository.UserRecord,
 ): void {
@@ -135,7 +219,6 @@ function ensureManagerCanReceivePermissions(
     );
   }
 }
-
 export async function listUsers(
   filters: ListUsersQueryInput,
 ): Promise<UserResponseDto[]> {
@@ -152,9 +235,9 @@ export async function getUserById(
 
 export async function createUser(
   input: CreateUserBodyInput,
+  actor: UserManagementActor,
 ): Promise<UserResponseDto> {
   const username = input.username.trim();
-
   const existingUser =
     await usersRepository.findUserByUsername(username);
 
@@ -166,9 +249,10 @@ export async function createUser(
     );
   }
 
-  const { roleIds } = await resolveRoles(input.roleIds);
-  const passwordHash = await bcrypt.hash(input.password, 12);
+  const { roleIds, roles } = await resolveRoles(input.roleIds);
+  ensureActorCanAssignRoles(actor, roles);
 
+  const passwordHash = await bcrypt.hash(input.password, 12);
   const createdUser = await usersRepository.createUser({
     username,
     passwordHash,
@@ -184,10 +268,12 @@ export async function createUser(
 export async function updateUser(
   userId: bigint,
   input: UpdateUserBodyInput,
+  actor: UserManagementActor,
 ): Promise<UserResponseDto> {
   const currentUser = await ensureUserExists(userId);
-  const nextUsername = input.username?.trim();
+  ensureActorCanManageTargetUser(actor, currentUser);
 
+  const nextUsername = input.username?.trim();
   if (
     nextUsername &&
     nextUsername !== currentUser.username
@@ -206,7 +292,6 @@ export async function updateUser(
       );
     }
   }
-
   const data: usersRepository.UpdateUserRepositoryInput = {
     ...(nextUsername ? { username: nextUsername } : {}),
     ...(input.firstName
@@ -226,7 +311,6 @@ export async function updateUser(
       12,
     );
   }
-
   const updatedUser = await usersRepository.updateUser(
     userId,
     data,
@@ -238,19 +322,21 @@ export async function updateUser(
 export async function replaceUserRoles(
   userId: bigint,
   input: ReplaceUserRolesBodyInput,
+  actor: UserManagementActor,
 ): Promise<UserResponseDto> {
-  await ensureUserExists(userId);
+  const currentUser = await ensureUserExists(userId);
+  ensureActorCanManageTargetUser(actor, currentUser);
 
   const { roleIds, roles } = await resolveRoles(
     input.roleIds,
   );
+  ensureActorCanAssignRoles(actor, roles);
 
   const hasManagerRole = roles.some(
-    (role) => role.name === MANAGER_ROLE,
+    (role) => normalizeRoleName(role.name) === MANAGER_ROLE,
   );
-
   const hasAdminRole = roles.some(
-    (role) => role.name === ADMIN_ROLE,
+    (role) => normalizeRoleName(role.name) === ADMIN_ROLE,
   );
 
   const canKeepIndividualPermissions =
@@ -265,7 +351,6 @@ export async function replaceUserRoles(
 
   return toUserResponse(updatedUser);
 }
-
 export async function replaceUserPermissions(
   userId: bigint,
   input: ReplaceUserPermissionsBodyInput,
@@ -285,15 +370,16 @@ export async function replaceUserPermissions(
       permissionIds,
       grantedBy,
     );
-
   return toUserResponse(updatedUser);
 }
 
 export async function updateUserStatus(
   userId: bigint,
   input: UpdateUserStatusBodyInput,
+  actor: UserManagementActor,
 ): Promise<UserResponseDto> {
-  await ensureUserExists(userId);
+  const targetUser = await ensureUserExists(userId);
+  ensureActorCanManageTargetUser(actor, targetUser);
 
   const updatedUser =
     await usersRepository.updateUserStatus(

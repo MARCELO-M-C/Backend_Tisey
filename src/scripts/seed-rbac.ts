@@ -9,8 +9,11 @@ const ROLES = [
   "COCINA",
   "CAJA",
 ] as const;
-
 const PERMISSIONS = [
+  {
+    code: "ADMIN_USERS_MANAGE",
+    description: "Gestionar usuarios operativos y consultar accesos del sistema",
+  },
   {
     code: "ADMIN_ORDERS_MANAGE",
     description: "Gestionar órdenes del restaurante",
@@ -40,7 +43,6 @@ const PERMISSIONS = [
     description: "Gestionar facturación y cobros del restaurante y del hotel",
   },
 ] as const;
-
 type AdminSeedConfig = {
   username: string;
   password: string | null;
@@ -64,7 +66,6 @@ function getOptionalEnvironmentVariable(name: string): string | null {
   const value = process.env[name]?.trim();
   return value || null;
 }
-
 function validateAdminUsername(username: string): void {
   if (username.length < 3 || username.length > 50) {
     throw new Error(
@@ -78,7 +79,6 @@ function validateAdminUsername(username: string): void {
     );
   }
 }
-
 function validateNewAdminPassword(password: string): void {
   if (password.length < 12) {
     throw new Error(
@@ -90,7 +90,6 @@ function validateNewAdminPassword(password: string): void {
   const hasLowercase = /[a-z]/.test(password);
   const hasNumber = /\d/.test(password);
   const hasSpecialCharacter = /[^a-zA-Z0-9]/.test(password);
-
   if (
     !hasUppercase ||
     !hasLowercase ||
@@ -102,7 +101,6 @@ function validateNewAdminPassword(password: string): void {
     );
   }
 }
-
 function getAdminSeedConfig(): AdminSeedConfig {
   const config: AdminSeedConfig = {
     username: getRequiredEnvironmentVariable("SEED_ADMIN_USERNAME"),
@@ -115,7 +113,6 @@ function getAdminSeedConfig(): AdminSeedConfig {
 
   return config;
 }
-
 async function upsertRoles(): Promise<Map<string, bigint>> {
   const roleMap = new Map<string, bigint>();
 
@@ -131,7 +128,6 @@ async function upsertRoles(): Promise<Map<string, bigint>> {
 
   return roleMap;
 }
-
 async function upsertPermissions(): Promise<void> {
   for (const permission of PERMISSIONS) {
     await prisma.permission.upsert({
@@ -146,7 +142,6 @@ async function upsertPermissions(): Promise<void> {
     });
   }
 }
-
 async function ensureInitialAdmin(
   roleMap: Map<string, bigint>,
   config: AdminSeedConfig,
@@ -164,7 +159,6 @@ async function ensureInitialAdmin(
   });
 
   let created = false;
-
   if (!user) {
     if (!config.password) {
       throw new Error(
@@ -175,7 +169,6 @@ async function ensureInitialAdmin(
     validateNewAdminPassword(config.password);
 
     const passwordHash = await bcrypt.hash(config.password, 12);
-
     user = await prisma.user.create({
       data: {
         username: config.username,
@@ -199,7 +192,6 @@ async function ensureInitialAdmin(
       },
     });
   }
-
   await prisma.userRole.upsert({
     where: {
       userId_roleId: {
@@ -225,12 +217,10 @@ async function main(): Promise<void> {
   const roleMap = await upsertRoles();
 
   await upsertPermissions();
-
   const adminResult = await ensureInitialAdmin(
     roleMap,
     adminConfig,
   );
-
   console.log("Seed RBAC oficial completado correctamente.");
   console.log(`Administrador: ${adminResult.username}`);
   console.log(
@@ -245,7 +235,6 @@ async function main(): Promise<void> {
     "Los permisos de MANAGER se asignarán posteriormente desde la administración de accesos.",
   );
 }
-
 main()
   .catch((error: unknown) => {
     console.error("Error ejecutando seed-rbac:", error);

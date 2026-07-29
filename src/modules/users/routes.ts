@@ -1,5 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
-import { authorizeRoles } from "../auth/service";
+import {
+  authorizePermissions,
+  authorizeRoles,
+} from "../auth/service";
 import {
   createUserController,
   getUserByIdController,
@@ -10,6 +13,11 @@ import {
   updateUserStatusController,
 } from "./controller";
 
+const USERS_MANAGE_PERMISSION = "ADMIN_USERS_MANAGE";
+
+const requireUsersManage = authorizePermissions([
+  USERS_MANAGE_PERMISSION,
+]);
 const requireAdmin = authorizeRoles(
   ["ADMIN"],
   { adminBypass: false },
@@ -19,7 +27,6 @@ const digitStringSchema = {
   type: "string",
   pattern: "^[0-9]+$",
 };
-
 const positiveBodyIdSchema = {
   type: "integer",
   minimum: 1,
@@ -40,7 +47,6 @@ const permissionSchema = {
     },
   },
 };
-
 const roleSchema = {
   type: "object",
   additionalProperties: false,
@@ -54,7 +60,6 @@ const roleSchema = {
     },
   },
 };
-
 const userResponseSchema = {
   type: "object",
   additionalProperties: false,
@@ -87,7 +92,6 @@ const userResponseSchema = {
     },
   },
 };
-
 const basicErrorSchema = {
   type: "object",
   additionalProperties: true,
@@ -106,7 +110,6 @@ const userIdParamsSchema = {
     id: digitStringSchema,
   },
 };
-
 const listUsersQuerystringSchema = {
   type: "object",
   additionalProperties: false,
@@ -123,7 +126,6 @@ const listUsersQuerystringSchema = {
     roleId: digitStringSchema,
   },
 };
-
 const createUserBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -165,7 +167,6 @@ const createUserBodySchema = {
     },
   },
 };
-
 const updateUserBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -196,7 +197,6 @@ const updateUserBodySchema = {
     },
   },
 };
-
 const replaceUserRolesBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -221,7 +221,6 @@ const replaceUserPermissionsBodySchema = {
     },
   },
 };
-
 const updateUserStatusBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -232,12 +231,11 @@ const updateUserStatusBodySchema = {
     },
   },
 };
-
 const usersRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/",
     {
-      onRequest: [requireAdmin],
+      onRequest: [requireUsersManage],
       schema: {
         tags: ["Users"],
         summary: "Listar usuarios",
@@ -255,11 +253,10 @@ const usersRoutes: FastifyPluginAsync = async (app) => {
     },
     listUsersController,
   );
-
   app.get(
     "/:id",
     {
-      onRequest: [requireAdmin],
+      onRequest: [requireUsersManage],
       schema: {
         tags: ["Users"],
         summary: "Obtener usuario por id",
@@ -275,11 +272,10 @@ const usersRoutes: FastifyPluginAsync = async (app) => {
     },
     getUserByIdController,
   );
-
   app.post(
     "/",
     {
-      onRequest: [requireAdmin],
+      onRequest: [requireUsersManage],
       schema: {
         tags: ["Users"],
         summary: "Crear usuario",
@@ -296,11 +292,10 @@ const usersRoutes: FastifyPluginAsync = async (app) => {
     },
     createUserController,
   );
-
   app.patch(
     "/:id",
     {
-      onRequest: [requireAdmin],
+      onRequest: [requireUsersManage],
       schema: {
         tags: ["Users"],
         summary: "Actualizar datos básicos de un usuario",
@@ -319,11 +314,10 @@ const usersRoutes: FastifyPluginAsync = async (app) => {
     },
     updateUserController,
   );
-
   app.patch(
     "/:id/status",
     {
-      onRequest: [requireAdmin],
+      onRequest: [requireUsersManage],
       schema: {
         tags: ["Users"],
         summary: "Activar o desactivar un usuario",
@@ -341,11 +335,10 @@ const usersRoutes: FastifyPluginAsync = async (app) => {
     },
     updateUserStatusController,
   );
-
   app.put(
     "/:id/roles",
     {
-      onRequest: [requireAdmin],
+      onRequest: [requireUsersManage],
       schema: {
         tags: ["Users"],
         summary: "Reemplazar roles de un usuario",
@@ -363,7 +356,6 @@ const usersRoutes: FastifyPluginAsync = async (app) => {
     },
     replaceUserRolesController,
   );
-
   app.put(
     "/:id/permissions",
     {
@@ -387,5 +379,4 @@ const usersRoutes: FastifyPluginAsync = async (app) => {
     replaceUserPermissionsController,
   );
 };
-
 export default usersRoutes;
