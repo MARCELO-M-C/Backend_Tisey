@@ -28,7 +28,6 @@ const cabinSummarySelect = {
   cabinNumber: true,
   name: true,
   capacity: true,
-  basePricePerNight: true,
 } satisfies Prisma.CabinSelect;
 
 const invoiceLineSelect = {
@@ -51,9 +50,7 @@ const paymentSelect = Prisma.validator<Prisma.PaymentDefaultArgs>()({
     reference: true,
     paidAt: true,
     receivedBy: true,
-    receivedByUser: {
-      select: userSummarySelect,
-    },
+    receivedByUser: { select: userSummarySelect },
   },
 });
 
@@ -73,12 +70,8 @@ const invoiceSelect = Prisma.validator<Prisma.InvoiceDefaultArgs>()({
     printedAt: true,
     printedBy: true,
     printCount: true,
-    issuedByUser: {
-      select: userSummarySelect,
-    },
-    printedByUser: {
-      select: userSummarySelect,
-    },
+    issuedByUser: { select: userSummarySelect },
+    printedByUser: { select: userSummarySelect },
     order: {
       select: {
         id: true,
@@ -95,19 +88,18 @@ const invoiceSelect = Prisma.validator<Prisma.InvoiceDefaultArgs>()({
         checkInDate: true,
         checkOutDate: true,
         status: true,
-        cabin: {
-          select: cabinSummarySelect,
-        },
-        primaryGuest: {
-          select: guestSummarySelect,
+        ratePerPersonPerNight: true,
+        minimumChargeableAge: true,
+        cabin: { select: cabinSummarySelect },
+        primaryGuest: { select: guestSummarySelect },
+        stayGuests: {
+          select: { isChargeable: true },
         },
       },
     },
     lines: {
       select: invoiceLineSelect,
-      orderBy: {
-        id: "asc",
-      },
+      orderBy: { id: "asc" },
     },
     payments: {
       select: {
@@ -118,13 +110,9 @@ const invoiceSelect = Prisma.validator<Prisma.InvoiceDefaultArgs>()({
         reference: true,
         paidAt: true,
         receivedBy: true,
-        receivedByUser: {
-          select: userSummarySelect,
-        },
+        receivedByUser: { select: userSummarySelect },
       },
-      orderBy: {
-        paidAt: "asc",
-      },
+      orderBy: { paidAt: "asc" },
     },
   },
 });
@@ -145,15 +133,10 @@ const orderForInvoiceSelect = Prisma.validator<Prisma.OrderDefaultArgs>()({
         quantity: true,
         itemStatus: true,
       },
-      orderBy: {
-        id: "asc",
-      },
+      orderBy: { id: "asc" },
     },
     invoices: {
-      select: {
-        id: true,
-        status: true,
-      },
+      select: { id: true, status: true },
     },
   },
 });
@@ -164,11 +147,15 @@ const stayForInvoiceSelect = Prisma.validator<Prisma.StayDefaultArgs>()({
     checkInDate: true,
     checkOutDate: true,
     status: true,
-    cabin: {
-      select: cabinSummarySelect,
-    },
-    primaryGuest: {
-      select: guestSummarySelect,
+    ratePerPersonPerNight: true,
+    minimumChargeableAge: true,
+    cabin: { select: cabinSummarySelect },
+    primaryGuest: { select: guestSummarySelect },
+    stayGuests: {
+      select: {
+        guestId: true,
+        isChargeable: true,
+      },
     },
     invoices: {
       select: {
@@ -183,10 +170,7 @@ const stayForInvoiceSelect = Prisma.validator<Prisma.StayDefaultArgs>()({
         orderCode: true,
         status: true,
         invoices: {
-          select: {
-            id: true,
-            status: true,
-          },
+          select: { id: true, status: true },
         },
         items: {
           select: {
@@ -196,14 +180,10 @@ const stayForInvoiceSelect = Prisma.validator<Prisma.StayDefaultArgs>()({
             quantity: true,
             itemStatus: true,
           },
-          orderBy: {
-            id: "asc",
-          },
+          orderBy: { id: "asc" },
         },
       },
-      orderBy: {
-        createdAt: "asc",
-      },
+      orderBy: { createdAt: "asc" },
     },
   },
 });
@@ -347,9 +327,7 @@ export async function listPaymentsByInvoice(
   invoiceId: bigint,
 ): Promise<PaymentRecord[]> {
   return prisma.payment.findMany({
-    where: {
-      invoiceId,
-    },
+    where: { invoiceId },
     orderBy: [{ paidAt: "asc" }],
     ...paymentSelect,
   });

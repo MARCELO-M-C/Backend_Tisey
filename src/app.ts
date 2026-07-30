@@ -6,7 +6,6 @@ import sensible from "@fastify/sensible";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
-
 import authRoutes from "./modules/auth/routes";
 import usersRoutes from "./modules/users/routes";
 import ordersRoutes from "./modules/orders/routes";
@@ -19,7 +18,7 @@ import guestsRoutes from "./modules/guests/routes";
 import rolesRoutes from "./modules/roles/routes";
 import staysRoutes from "./modules/stays/routes";
 import invoicesRoutes from "./modules/invoices/routes";
-
+import lodgingRatesRoutes from "./modules/lodging-rates/routes";
 import { env } from "./config/env";
 
 export async function buildApp(): Promise<FastifyInstance> {
@@ -39,7 +38,6 @@ export async function buildApp(): Promise<FastifyInstance> {
       expiresIn: env.JWT_EXPIRES_IN,
     },
   });
-
   await app.register(cors, {
   origin: (origin, callback) => {
     if (!origin) {
@@ -58,12 +56,10 @@ export async function buildApp(): Promise<FastifyInstance> {
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization"],
   });
-
   await app.register(rateLimit, {
     max: 120,
     timeWindow: "1 minute",
   });
-
   await app.register(swagger, {
     openapi: {
       info: {
@@ -79,10 +75,14 @@ export async function buildApp(): Promise<FastifyInstance> {
           },
         },
       },
-      tags: [        
+      tags: [
         { name: "Auth", description: "Autenticación" },
         { name: "Cabins", description: "Cabañas y disponibilidad" },
         { name: "Guests", description: "Huéspedes y reservas" },
+        {
+          name: "Lodging-Rates",
+          description: "Tarifas históricas de hospedaje por persona y noche",
+        },
         { name: "Roles", description: "Roles y catálogo de permisos" },
         { name: "Users", description: "Usuarios, roles y permisos individuales" },
         { name: "Menu", description: "Menú y categorías" },
@@ -95,7 +95,6 @@ export async function buildApp(): Promise<FastifyInstance> {
       ],
     },
   });
-
   await app.register(swaggerUi, {
     routePrefix: "/docs",
     staticCSP: true,
@@ -119,7 +118,6 @@ export async function buildApp(): Promise<FastifyInstance> {
       docs: "/docs",
     }),
   );
-
   app.get(
     "/health",
     {
@@ -133,7 +131,6 @@ export async function buildApp(): Promise<FastifyInstance> {
       status: "healthy",
     }),
   );
-
   await app.register(authRoutes, { prefix: "/auth" });
   await app.register(usersRoutes, { prefix: "/users" });
   await app.register(ordersRoutes, { prefix: "/orders" });
@@ -143,13 +140,13 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(shiftsRoutes, { prefix: "/shifts"});
   await app.register(cabinsRoutes, { prefix: "/cabins" });
   await app.register(guestsRoutes, { prefix: "/guests" });
+  await app.register(lodgingRatesRoutes, { prefix: "/lodging-rates" });
   await app.register(rolesRoutes, { prefix: "/roles" });
   await app.register(staysRoutes, { prefix: "/stays" });
   await app.register(invoicesRoutes, { prefix: "/invoices" });
-  
+
   app.setErrorHandler((error: FastifyError, request, reply) => {
     request.log.error(error);
-
     if (error.validation) {
       return reply.status(400).send({
         message: "Invalid request payload.",

@@ -60,12 +60,15 @@ export interface InvoiceResponseDto {
     checkInDate: string;
     checkOutDate: string;
     status: string;
+    ratePerPersonPerNight: string;
+    minimumChargeableAge: number;
+    guestsCount: number;
+    chargeableGuestsCount: number;
     cabin: {
       id: string;
       cabinNumber: number;
       name: string | null;
       capacity: number;
-      basePricePerNight: string | null;
     };
     primaryGuest: {
       id: string;
@@ -115,7 +118,6 @@ export function toInvoiceResponse(record: InvoiceRecord): InvoiceResponseDto {
     (sum, payment) => sum.plus(payment.amount),
     new Prisma.Decimal(0),
   );
-
   const balanceDue = record.total.minus(amountPaid);
 
   return {
@@ -152,14 +154,18 @@ export function toInvoiceResponse(record: InvoiceRecord): InvoiceResponseDto {
           checkInDate: toDateOnly(record.stay.checkInDate),
           checkOutDate: toDateOnly(record.stay.checkOutDate),
           status: record.stay.status,
+          ratePerPersonPerNight:
+            record.stay.ratePerPersonPerNight.toFixed(2),
+          minimumChargeableAge: record.stay.minimumChargeableAge,
+          guestsCount: record.stay.stayGuests.length,
+          chargeableGuestsCount: record.stay.stayGuests.filter(
+            (stayGuest) => stayGuest.isChargeable,
+          ).length,
           cabin: {
             id: record.stay.cabin.id.toString(),
             cabinNumber: record.stay.cabin.cabinNumber,
             name: record.stay.cabin.name,
             capacity: record.stay.cabin.capacity,
-            basePricePerNight: record.stay.cabin.basePricePerNight
-              ? record.stay.cabin.basePricePerNight.toFixed(2)
-              : null,
           },
           primaryGuest: {
             id: record.stay.primaryGuest.id.toString(),

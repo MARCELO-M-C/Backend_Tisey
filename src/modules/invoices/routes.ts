@@ -11,40 +11,28 @@ import {
   voidInvoiceController,
 } from "./controller";
 
-const digitStringSchema = {
-  type: "string",
-  pattern: "^[0-9]+$",
-};
-
-const positiveBodyIdSchema = {
-  type: "integer",
-  minimum: 1,
-};
-
+const digitStringSchema = { type: "string", pattern: "^[0-9]+$" };
+const positiveBodyIdSchema = { type: "integer", minimum: 1 };
 const moneySchema = {
   anyOf: [
     { type: "number", exclusiveMinimum: 0 },
     { type: "string", pattern: "^\\d+(\\.\\d{1,2})?$" },
   ],
 };
-
 const taxRateSchema = {
   anyOf: [
     { type: "number", minimum: 0, maximum: 100 },
     { type: "string", pattern: "^\\d+(\\.\\d{1,2})?$" },
   ],
 };
-
 const invoiceStatusSchema = {
   type: "string",
   enum: ["ISSUED", "VOID"],
 };
-
 const paymentMethodSchema = {
   type: "string",
   enum: ["CASH", "CARD", "TRANSFER", "MIXED", "OTHER"],
 };
-
 const basicErrorSchema = {
   type: "object",
   additionalProperties: true,
@@ -89,9 +77,7 @@ const invoiceLineResponseSchema = {
     quantity: { type: "integer" },
     unitPrice: { type: "string" },
     lineTotal: { type: "string" },
-    orderItemId: {
-      anyOf: [{ type: "string" }, { type: "null" }],
-    },
+    orderItemId: { anyOf: [{ type: "string" }, { type: "null" }] },
     createdAt: { type: "string" },
   },
 };
@@ -111,13 +97,73 @@ const paymentResponseSchema = {
   properties: {
     id: { type: "string" },
     invoiceId: { type: "string" },
-    method: paymentMethodSchema,
+    method: { type: "string" },
     amount: { type: "string" },
-    reference: {
-      anyOf: [{ type: "string" }, { type: "null" }],
-    },
+    reference: { anyOf: [{ type: "string" }, { type: "null" }] },
     paidAt: { type: "string" },
     receivedByUser: userSummaryResponseSchema,
+  },
+};
+
+const orderSummaryResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["id", "orderCode", "channel", "serviceMode", "status", "createdAt"],
+  properties: {
+    id: { type: "string" },
+    orderCode: { type: "string" },
+    channel: { type: "string" },
+    serviceMode: { type: "string" },
+    status: { type: "string" },
+    createdAt: { type: "string" },
+  },
+};
+
+const staySummaryResponseSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "id",
+    "checkInDate",
+    "checkOutDate",
+    "status",
+    "ratePerPersonPerNight",
+    "minimumChargeableAge",
+    "guestsCount",
+    "chargeableGuestsCount",
+    "cabin",
+    "primaryGuest",
+  ],
+  properties: {
+    id: { type: "string" },
+    checkInDate: { type: "string" },
+    checkOutDate: { type: "string" },
+    status: { type: "string" },
+    ratePerPersonPerNight: { type: "string" },
+    minimumChargeableAge: { type: "integer" },
+    guestsCount: { type: "integer" },
+    chargeableGuestsCount: { type: "integer" },
+    cabin: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "cabinNumber", "name", "capacity"],
+      properties: {
+        id: { type: "string" },
+        cabinNumber: { type: "integer" },
+        name: { anyOf: [{ type: "string" }, { type: "null" }] },
+        capacity: { type: "integer" },
+      },
+    },
+    primaryGuest: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "fullName", "idNumber"],
+      properties: {
+        id: { type: "string" },
+        fullName: { type: "string" },
+        idNumber: { anyOf: [{ type: "string" }, { type: "null" }] },
+      },
+    },
   },
 };
 
@@ -156,107 +202,17 @@ const invoiceResponseSchema = {
     amountPaid: { type: "string" },
     balanceDue: { type: "string" },
     isPaid: { type: "boolean" },
-    notes: {
-      anyOf: [{ type: "string" }, { type: "null" }],
-    },
-    printedAt: {
-      anyOf: [{ type: "string" }, { type: "null" }],
-    },
+    notes: { anyOf: [{ type: "string" }, { type: "null" }] },
+    printedAt: { anyOf: [{ type: "string" }, { type: "null" }] },
     printCount: { type: "integer" },
     issuedByUser: userSummaryResponseSchema,
     printedByUser: {
       anyOf: [userSummaryResponseSchema, { type: "null" }],
     },
-    order: {
-      anyOf: [
-        {
-          type: "object",
-          additionalProperties: false,
-          required: [
-            "id",
-            "orderCode",
-            "channel",
-            "serviceMode",
-            "status",
-            "createdAt",
-          ],
-          properties: {
-            id: { type: "string" },
-            orderCode: { type: "string" },
-            channel: { type: "string" },
-            serviceMode: { type: "string" },
-            status: { type: "string" },
-            createdAt: { type: "string" },
-          },
-        },
-        { type: "null" },
-      ],
-    },
-    stay: {
-      anyOf: [
-        {
-          type: "object",
-          additionalProperties: false,
-          required: [
-            "id",
-            "checkInDate",
-            "checkOutDate",
-            "status",
-            "cabin",
-            "primaryGuest",
-          ],
-          properties: {
-            id: { type: "string" },
-            checkInDate: { type: "string" },
-            checkOutDate: { type: "string" },
-            status: { type: "string" },
-            cabin: {
-              type: "object",
-              additionalProperties: false,
-              required: [
-                "id",
-                "cabinNumber",
-                "name",
-                "capacity",
-                "basePricePerNight",
-              ],
-              properties: {
-                id: { type: "string" },
-                cabinNumber: { type: "integer" },
-                name: {
-                  anyOf: [{ type: "string" }, { type: "null" }],
-                },
-                capacity: { type: "integer" },
-                basePricePerNight: {
-                  anyOf: [{ type: "string" }, { type: "null" }],
-                },
-              },
-            },
-            primaryGuest: {
-              type: "object",
-              additionalProperties: false,
-              required: ["id", "fullName", "idNumber"],
-              properties: {
-                id: { type: "string" },
-                fullName: { type: "string" },
-                idNumber: {
-                  anyOf: [{ type: "string" }, { type: "null" }],
-                },
-              },
-            },
-          },
-        },
-        { type: "null" },
-      ],
-    },
-    lines: {
-      type: "array",
-      items: invoiceLineResponseSchema,
-    },
-    payments: {
-      type: "array",
-      items: paymentResponseSchema,
-    },
+    order: { anyOf: [orderSummaryResponseSchema, { type: "null" }] },
+    stay: { anyOf: [staySummaryResponseSchema, { type: "null" }] },
+    lines: { type: "array", items: invoiceLineResponseSchema },
+    payments: { type: "array", items: paymentResponseSchema },
   },
 };
 
@@ -264,11 +220,8 @@ const invoiceParamsSchema = {
   type: "object",
   additionalProperties: false,
   required: ["invoiceId"],
-  properties: {
-    invoiceId: digitStringSchema,
-  },
+  properties: { invoiceId: digitStringSchema },
 };
-
 const listInvoicesQuerystringSchema = {
   type: "object",
   additionalProperties: false,
@@ -280,7 +233,6 @@ const listInvoicesQuerystringSchema = {
     to: { type: "string" },
   },
 };
-
 const extraLineBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -291,7 +243,6 @@ const extraLineBodySchema = {
     unitPrice: moneySchema,
   },
 };
-
 const createInvoiceFromOrderBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -302,13 +253,9 @@ const createInvoiceFromOrderBodySchema = {
     notes: {
       anyOf: [{ type: "string", minLength: 1, maxLength: 255 }, { type: "null" }],
     },
-    extraLines: {
-      type: "array",
-      items: extraLineBodySchema,
-    },
+    extraLines: { type: "array", items: extraLineBodySchema },
   },
 };
-
 const createInvoiceFromStayBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -321,13 +268,9 @@ const createInvoiceFromStayBodySchema = {
     notes: {
       anyOf: [{ type: "string", minLength: 1, maxLength: 255 }, { type: "null" }],
     },
-    extraLines: {
-      type: "array",
-      items: extraLineBodySchema,
-    },
+    extraLines: { type: "array", items: extraLineBodySchema },
   },
 };
-
 const voidInvoiceBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -335,12 +278,10 @@ const voidInvoiceBodySchema = {
     reason: { type: "string", minLength: 1, maxLength: 255 },
   },
 };
-
 const printInvoiceBodySchema = {
   type: "object",
   additionalProperties: false,
 };
-
 const createPaymentBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -366,10 +307,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
         security: [{ bearerAuth: [] }],
         querystring: listInvoicesQuerystringSchema,
         response: {
-          200: {
-            type: "array",
-            items: invoiceResponseSchema,
-          },
+          200: { type: "array", items: invoiceResponseSchema },
           401: basicErrorSchema,
         },
       },
@@ -423,7 +361,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
       onRequest: [authenticateRequest],
       schema: {
         tags: ["Invoices"],
-        summary: "Emitir factura desde una estadía",
+        summary: "Emitir factura de hospedaje por persona y noche",
         security: [{ bearerAuth: [] }],
         body: createInvoiceFromStayBodySchema,
         response: {
@@ -492,10 +430,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
         security: [{ bearerAuth: [] }],
         params: invoiceParamsSchema,
         response: {
-          200: {
-            type: "array",
-            items: paymentResponseSchema,
-          },
+          200: { type: "array", items: paymentResponseSchema },
           401: basicErrorSchema,
           404: basicErrorSchema,
         },

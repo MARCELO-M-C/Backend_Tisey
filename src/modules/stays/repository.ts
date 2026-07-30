@@ -1,4 +1,5 @@
 import {
+  InvoiceStatus,
   OrderStatus,
   Prisma,
   StayStatus,
@@ -11,6 +12,7 @@ const guestSummarySelect = {
   fullName: true,
   idNumber: true,
   originPlace: true,
+  birthDate: true,
 } satisfies Prisma.GuestSelect;
 
 const cabinSummarySelect = {
@@ -18,7 +20,6 @@ const cabinSummarySelect = {
   cabinNumber: true,
   name: true,
   capacity: true,
-  basePricePerNight: true,
   status: true,
   isActive: true,
 } satisfies Prisma.CabinSelect;
@@ -31,35 +32,43 @@ const userSummarySelect = {
   isActive: true,
 } satisfies Prisma.UserSelect;
 
+const lodgingRateSummarySelect = {
+  id: true,
+  amountPerPersonPerNight: true,
+  minimumChargeableAge: true,
+  effectiveFrom: true,
+} satisfies Prisma.LodgingRateSelect;
+
 const staySelect = Prisma.validator<Prisma.StayDefaultArgs>()({
   select: {
     id: true,
     cabinId: true,
     primaryGuestId: true,
+    lodgingRateId: true,
     checkInDate: true,
     checkOutDate: true,
+    ratePerPersonPerNight: true,
+    minimumChargeableAge: true,
     status: true,
     createdBy: true,
     createdAt: true,
-    cabin: {
-      select: cabinSummarySelect,
-    },
-    primaryGuest: {
-      select: guestSummarySelect,
-    },
-    createdByUser: {
-      select: userSummarySelect,
-    },
+    cabin: { select: cabinSummarySelect },
+    lodgingRate: { select: lodgingRateSummarySelect },
+    primaryGuest: { select: guestSummarySelect },
+    createdByUser: { select: userSummarySelect },
     stayGuests: {
       select: {
-        guest: {
-          select: guestSummarySelect,
-        },
+        ageAtCheckIn: true,
+        isChargeable: true,
+        guest: { select: guestSummarySelect },
       },
-      orderBy: {
-        guest: {
-          fullName: "asc",
-        },
+      orderBy: { guest: { fullName: "asc" } },
+    },
+    invoices: {
+      select: {
+        id: true,
+        status: true,
+        orderId: true,
       },
     },
     _count: {
@@ -73,13 +82,14 @@ const staySelect = Prisma.validator<Prisma.StayDefaultArgs>()({
 });
 
 export type StayRecord = Prisma.StayGetPayload<typeof staySelect>;
-
 export type GuestSummaryRecord = Prisma.GuestGetPayload<{
   select: typeof guestSummarySelect;
 }>;
-
 export type CabinSummaryRecord = Prisma.CabinGetPayload<{
   select: typeof cabinSummarySelect;
+}>;
+export type LodgingRateSummaryRecord = Prisma.LodgingRateGetPayload<{
+  select: typeof lodgingRateSummarySelect;
 }>;
 
 export interface ListStaysFilters {
@@ -90,21 +100,33 @@ export interface ListStaysFilters {
   to?: Date;
 }
 
+export interface StayGuestSnapshotRepositoryInput {
+  guestId: bigint;
+  ageAtCheckIn: number | null;
+  isChargeable: boolean;
+}
+
 export interface CreateStayRepositoryInput {
   cabinId: bigint;
   primaryGuestId: bigint;
+  lodgingRateId: bigint;
   checkInDate: Date;
   checkOutDate: Date;
+  ratePerPersonPerNight: Prisma.Decimal;
+  minimumChargeableAge: number;
   status: StayStatus;
   createdBy?: bigint;
-  guestIds: bigint[];
+  guests: StayGuestSnapshotRepositoryInput[];
 }
 
 export interface UpdateStayRepositoryInput {
   cabinId?: bigint;
   primaryGuestId?: bigint;
+  lodgingRateId?: bigint;
   checkInDate?: Date;
   checkOutDate?: Date;
+  ratePerPersonPerNight?: Prisma.Decimal;
+  minimumChargeableAge?: number;
   status?: StayStatus;
 }
 
@@ -159,15 +181,23 @@ export async function findGuestById(
   });
 }
 
-export async function countGuestsByIds(guestIds: bigint[]): Promise<number> {
-  if (guestIds.length === 0) return 0;
+export async function findGuestsByIds(
+  guestIds: bigint[],
+): Promise<GuestSummaryRecord[]> {
+  if (guestIds.length === 0) return [];
+  return prisma.guest.findMany({
+    where: { id: { in: guestIds } },
+    select: guestSummarySelect,
+  });
+}
 
-  return prisma.guest.count({
-    where: {
-      id: {
-        in: guestIds,
-      },
-    },
+export async function findApplicableLodgingRate(
+  date: Date,
+): Promise<LodgingRateSummaryRecord | null> {
+  return prisma.lodgingRate.findFirst({
+    where: { effectiveFrom: { lte: date } },
+    orderBy: [{ effectiveFrom: "desc" }, { id: "desc" }],
+    select: lodgingRateSummarySelect,
   });
 }
 
@@ -180,22 +210,10 @@ export async function countOverlappingActiveStaysByCabin(
   return prisma.stay.count({
     where: {
       cabinId,
-      status: {
-        in: [StayStatus.BOOKED, StayStatus.CHECKED_IN],
-      },
-      checkInDate: {
-        lt: checkOutDate,
-      },
-      checkOutDate: {
-        gt: checkInDate,
-      },
-      ...(excludeStayId
-        ? {
-            id: {
-              not: excludeStayId,
-            },
-          }
-        : {}),
+      status: { in: [StayStatus.BOOKED, StayStatus.CHECKED_IN] },
+      checkInDate: { lt: checkOutDate },
+      checkOutDate: { gt: checkInDate },
+      ...(excludeStayId ? { id: { not: excludeStayId } } : {}),
     },
   });
 }
@@ -217,25 +235,24 @@ export async function countOpenOrdersByStay(stayId: bigint): Promise<number> {
   });
 }
 
-export async function countActiveStaysByCabin(
+export async function countCheckedInStaysByCabin(
   cabinId: bigint,
   excludeStayId?: bigint,
 ): Promise<number> {
   return prisma.stay.count({
     where: {
       cabinId,
-      status: {
-        in: [StayStatus.BOOKED, StayStatus.CHECKED_IN],
-      },
-      ...(excludeStayId
-        ? {
-            id: {
-              not: excludeStayId,
-            },
-          }
-        : {}),
+      status: StayStatus.CHECKED_IN,
+      ...(excludeStayId ? { id: { not: excludeStayId } } : {}),
     },
   });
+}
+
+export function hasIssuedLodgingInvoice(stay: StayRecord): boolean {
+  return stay.invoices.some(
+    (invoice) =>
+      invoice.status === InvoiceStatus.ISSUED && invoice.orderId === null,
+  );
 }
 
 export async function createStay(
@@ -246,27 +263,28 @@ export async function createStay(
       data: {
         cabinId: data.cabinId,
         primaryGuestId: data.primaryGuestId,
+        lodgingRateId: data.lodgingRateId,
         checkInDate: data.checkInDate,
         checkOutDate: data.checkOutDate,
+        ratePerPersonPerNight: data.ratePerPersonPerNight,
+        minimumChargeableAge: data.minimumChargeableAge,
         status: data.status,
         createdBy: data.createdBy ?? null,
         stayGuests: {
-          create: data.guestIds.map((guestId) => ({
-            guestId,
+          create: data.guests.map((guest) => ({
+            guestId: guest.guestId,
+            ageAtCheckIn: guest.ageAtCheckIn,
+            isChargeable: guest.isChargeable,
           })),
         },
       },
-      select: {
-        id: true,
-      },
+      select: { id: true },
     });
 
     if (data.status === StayStatus.CHECKED_IN) {
       await tx.cabin.update({
         where: { id: data.cabinId },
-        data: {
-          status: cabins_status.OCCUPIED,
-        },
+        data: { status: cabins_status.OCCUPIED },
       });
     }
 
@@ -288,25 +306,49 @@ export async function updateStay(
   });
 }
 
-export async function replaceStayGuests(
+export async function updateStayAndGuests(
   stayId: bigint,
-  guestIds: bigint[],
+  data: UpdateStayRepositoryInput,
+  guests: StayGuestSnapshotRepositoryInput[],
 ): Promise<StayRecord> {
   return prisma.$transaction(async (tx) => {
-    await tx.stayGuest.deleteMany({
-      where: { stayId },
-    });
-
-    if (guestIds.length > 0) {
+    await tx.stay.update({ where: { id: stayId }, data });
+    await tx.stayGuest.deleteMany({ where: { stayId } });
+    if (guests.length > 0) {
       await tx.stayGuest.createMany({
-        data: guestIds.map((guestId) => ({
+        data: guests.map((guest) => ({
           stayId,
-          guestId,
+          guestId: guest.guestId,
+          ageAtCheckIn: guest.ageAtCheckIn,
+          isChargeable: guest.isChargeable,
         })),
         skipDuplicates: true,
       });
     }
+    return tx.stay.findUniqueOrThrow({
+      where: { id: stayId },
+      ...staySelect,
+    });
+  });
+}
 
+export async function replaceStayGuests(
+  stayId: bigint,
+  guests: StayGuestSnapshotRepositoryInput[],
+): Promise<StayRecord> {
+  return prisma.$transaction(async (tx) => {
+    await tx.stayGuest.deleteMany({ where: { stayId } });
+    if (guests.length > 0) {
+      await tx.stayGuest.createMany({
+        data: guests.map((guest) => ({
+          stayId,
+          guestId: guest.guestId,
+          ageAtCheckIn: guest.ageAtCheckIn,
+          isChargeable: guest.isChargeable,
+        })),
+        skipDuplicates: true,
+      });
+    }
     return tx.stay.findUniqueOrThrow({
       where: { id: stayId },
       ...staySelect,
@@ -320,8 +362,6 @@ export async function updateCabinStatus(
 ): Promise<void> {
   await prisma.cabin.update({
     where: { id: cabinId },
-    data: {
-      status,
-    },
+    data: { status },
   });
 }

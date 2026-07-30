@@ -7,13 +7,30 @@ const bigintIdSchema = z
   ])
   .transform((value) => BigInt(value));
 
+function isValidDateOnly(value: string): boolean {
+  const parsedDate = new Date(`${value}T00:00:00.000Z`);
+  return (
+    !Number.isNaN(parsedDate.getTime()) &&
+    parsedDate.toISOString().slice(0, 10) === value
+  );
+}
+
+const dateOnlySchema = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Debe tener formato YYYY-MM-DD.")
+  .refine(isValidDateOnly, "Debe ser una fecha calendario válida.")
+  .transform((value) => new Date(`${value}T00:00:00.000Z`));
+
 const nullableTextSchema = (max: number) =>
   z.union([z.string().trim().min(1).max(max), z.null()]).optional();
 
+const nullableBirthDateSchema = z
+  .union([dateOnlySchema, z.null()])
+  .optional();
+
 export const guestIdParamSchema = z
-  .object({
-    guestId: bigintIdSchema,
-  })
+  .object({ guestId: bigintIdSchema })
   .strict();
 
 export const listGuestsQuerySchema = z
@@ -28,6 +45,7 @@ export const createGuestBodySchema = z
     fullName: z.string().trim().min(1).max(160),
     idNumber: nullableTextSchema(40),
     originPlace: nullableTextSchema(120),
+    birthDate: nullableBirthDateSchema,
   })
   .strict();
 
@@ -38,6 +56,7 @@ export const updateGuestBodySchema = z
     originPlace: z
       .union([z.string().trim().min(1).max(120), z.null()])
       .optional(),
+    birthDate: z.union([dateOnlySchema, z.null()]).optional(),
   })
   .strict()
   .refine((data) => Object.keys(data).length > 0, {

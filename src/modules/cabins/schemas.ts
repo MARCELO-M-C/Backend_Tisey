@@ -12,26 +12,12 @@ const optionalBooleanQuerySchema = z
   .transform((value) => value === "true");
 
 const cabinStatusSchema = z.enum(["AVAILABLE", "OCCUPIED", "MAINTENANCE"]);
-
-const moneyValueSchema = z
-  .union([
-    z.string().trim().regex(/^\d+(\.\d{1,2})?$/, "Precio inválido."),
-    z.number().positive(),
-  ])
-  .transform((value) =>
-    typeof value === "number" ? value.toFixed(2) : value.trim(),
-  );
-
-const nullableMoneySchema = z.union([moneyValueSchema, z.null()]).optional();
-
 const nullableNameSchema = z
   .union([z.string().trim().min(1).max(80), z.null()])
   .optional();
 
 export const cabinIdParamSchema = z
-  .object({
-    cabinId: bigintIdSchema,
-  })
+  .object({ cabinId: bigintIdSchema })
   .strict();
 
 export const listCabinsQuerySchema = z
@@ -54,7 +40,6 @@ export const createCabinBodySchema = z
     cabinNumber: z.number().int().positive().max(9999),
     name: nullableNameSchema,
     capacity: z.number().int().positive().max(100),
-    basePricePerNight: nullableMoneySchema,
     status: cabinStatusSchema.optional().default("AVAILABLE"),
     isActive: z.boolean().optional().default(true),
   })
@@ -65,7 +50,6 @@ export const updateCabinBodySchema = z
     cabinNumber: z.number().int().positive().max(9999).optional(),
     name: z.union([z.string().trim().min(1).max(80), z.null()]).optional(),
     capacity: z.number().int().positive().max(100).optional(),
-    basePricePerNight: z.union([moneyValueSchema, z.null()]).optional(),
   })
   .strict()
   .refine((data) => Object.keys(data).length > 0, {
@@ -73,15 +57,11 @@ export const updateCabinBodySchema = z
   });
 
 export const updateCabinStatusBodySchema = z
-  .object({
-    status: cabinStatusSchema,
-  })
+  .object({ status: cabinStatusSchema })
   .strict();
 
 export const updateCabinActiveBodySchema = z
-  .object({
-    isActive: z.boolean(),
-  })
+  .object({ isActive: z.boolean() })
   .strict();
 
 export type CabinIdParamsInput = z.infer<typeof cabinIdParamSchema>;

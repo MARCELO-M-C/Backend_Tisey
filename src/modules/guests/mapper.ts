@@ -5,9 +5,14 @@ export interface GuestResponseDto {
   fullName: string;
   idNumber: string | null;
   originPlace: string | null;
+  birthDate: string | null;
   createdAt: string;
   staysCount: number;
   primaryStaysCount: number;
+}
+
+function toDateOnly(value: Date): string {
+  return value.toISOString().slice(0, 10);
 }
 
 export function toGuestResponse(record: GuestRecord): GuestResponseDto {
@@ -16,6 +21,7 @@ export function toGuestResponse(record: GuestRecord): GuestResponseDto {
     fullName: record.fullName,
     idNumber: record.idNumber,
     originPlace: record.originPlace,
+    birthDate: record.birthDate ? toDateOnly(record.birthDate) : null,
     createdAt: record.createdAt.toISOString(),
     staysCount: record._count.stayGuests,
     primaryStaysCount: record._count.primaryStays,

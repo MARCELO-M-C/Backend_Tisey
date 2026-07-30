@@ -1,4 +1,4 @@
-import { Prisma, cabins_status } from "@prisma/client";
+import { cabins_status } from "@prisma/client";
 import { toCabinResponse, type CabinResponseDto } from "./mapper";
 import * as cabinsRepository from "./repository";
 import type {
@@ -23,14 +23,12 @@ export class CabinsServiceError extends Error {
 function normalizeName(value?: string | null): string | null | undefined {
   if (typeof value === "undefined") return undefined;
   if (value === null) return null;
-
   const trimmedValue = value.trim();
   return trimmedValue.length > 0 ? trimmedValue : null;
 }
 
 async function ensureCabinExists(cabinId: bigint) {
   const cabin = await cabinsRepository.findCabinById(cabinId);
-
   if (!cabin) {
     throw new CabinsServiceError(
       404,
@@ -38,7 +36,6 @@ async function ensureCabinExists(cabinId: bigint) {
       "Cabaña no encontrada.",
     );
   }
-
   return cabin;
 }
 
@@ -47,7 +44,6 @@ async function ensureCabinNumberIsAvailable(
   currentCabinId?: bigint,
 ) {
   const existingCabin = await cabinsRepository.findCabinByNumber(cabinNumber);
-
   if (existingCabin && existingCabin.id !== currentCabinId) {
     throw new CabinsServiceError(
       409,
@@ -58,15 +54,27 @@ async function ensureCabinNumberIsAvailable(
 }
 
 async function ensureCabinHasNoActiveStays(cabinId: bigint) {
-  const activeStaysCount = await cabinsRepository.countActiveStaysByCabin(
-    cabinId,
-  );
-
-  if (activeStaysCount > 0) {
+  const count = await cabinsRepository.countActiveStaysByCabin(cabinId);
+  if (count > 0) {
     throw new CabinsServiceError(
       409,
       "CABIN_HAS_ACTIVE_STAYS",
       "La cabaña tiene estadías activas o reservadas.",
+    );
+  }
+}
+
+async function ensureCapacitySupportsActiveStays(
+  cabinId: bigint,
+  capacity: number,
+) {
+  const conflictingStay =
+    await cabinsRepository.findActiveStayExceedingCapacity(cabinId, capacity);
+  if (conflictingStay) {
+    throw new CabinsServiceError(
+      409,
+      "CABIN_CAPACITY_BELOW_ACTIVE_STAY",
+      `No puedes reducir la capacidad a ${capacity}; la estadía ${conflictingStay.id.toString()} tiene ${conflictingStay.guestsCount} huéspedes.`,
     );
   }
 }
@@ -78,34 +86,27 @@ export async function listCabins(
     ...filters,
     status: filters.status as cabins_status | undefined,
   });
-
   return cabins.map(toCabinResponse);
 }
 
 export async function getCabinById(
   cabinId: bigint,
 ): Promise<CabinResponseDto> {
-  const cabin = await ensureCabinExists(cabinId);
-  return toCabinResponse(cabin);
+  return toCabinResponse(await ensureCabinExists(cabinId));
 }
 
 export async function createCabin(
   input: CreateCabinBodyInput,
 ): Promise<CabinResponseDto> {
   await ensureCabinNumberIsAvailable(input.cabinNumber);
-
-  const createdCabin = await cabinsRepository.createCabin({
+  const cabin = await cabinsRepository.createCabin({
     cabinNumber: input.cabinNumber,
     name: normalizeName(input.name) ?? null,
     capacity: input.capacity,
-    basePricePerNight: input.basePricePerNight
-      ? new Prisma.Decimal(input.basePricePerNight)
-      : null,
     status: input.status as cabins_status,
     isActive: input.isActive,
   });
-
-  return toCabinResponse(createdCabin);
+  return toCabinResponse(cabin);
 }
 
 export async function updateCabin(
@@ -121,7 +122,14 @@ export async function updateCabin(
     await ensureCabinNumberIsAvailable(input.cabinNumber, cabinId);
   }
 
-  const updatedCabin = await cabinsRepository.updateCabin(cabinId, {
+  if (
+    typeof input.capacity === "number" &&
+    input.capacity < currentCabin.capacity
+  ) {
+    await ensureCapacitySupportsActiveStays(cabinId, input.capacity);
+  }
+
+  const cabin = await cabinsRepository.updateCabin(cabinId, {
     ...(typeof input.cabinNumber === "number"
       ? { cabinNumber: input.cabinNumber }
       : {}),
@@ -129,16 +137,8 @@ export async function updateCabin(
       ? { name: normalizeName(input.name) ?? null }
       : {}),
     ...(typeof input.capacity === "number" ? { capacity: input.capacity } : {}),
-    ...(Object.prototype.hasOwnProperty.call(input, "basePricePerNight")
-      ? {
-          basePricePerNight: input.basePricePerNight
-            ? new Prisma.Decimal(input.basePricePerNight)
-            : null,
-        }
-      : {}),
   });
-
-  return toCabinResponse(updatedCabin);
+  return toCabinResponse(cabin);
 }
 
 export async function updateCabinStatus(
@@ -146,7 +146,6 @@ export async function updateCabinStatus(
   input: UpdateCabinStatusBodyInput,
 ): Promise<CabinResponseDto> {
   await ensureCabinExists(cabinId);
-
   const nextStatus = input.status as cabins_status;
 
   if (
@@ -156,11 +155,9 @@ export async function updateCabinStatus(
     await ensureCabinHasNoActiveStays(cabinId);
   }
 
-  const updatedCabin = await cabinsRepository.updateCabin(cabinId, {
-    status: nextStatus,
-  });
-
-  return toCabinResponse(updatedCabin);
+  return toCabinResponse(
+    await cabinsRepository.updateCabin(cabinId, { status: nextStatus }),
+  );
 }
 
 export async function updateCabinActiveStatus(
@@ -168,14 +165,13 @@ export async function updateCabinActiveStatus(
   input: UpdateCabinActiveBodyInput,
 ): Promise<CabinResponseDto> {
   await ensureCabinExists(cabinId);
-
   if (!input.isActive) {
     await ensureCabinHasNoActiveStays(cabinId);
   }
 
-  const updatedCabin = await cabinsRepository.updateCabin(cabinId, {
-    isActive: input.isActive,
-  });
-
-  return toCabinResponse(updatedCabin);
+  return toCabinResponse(
+    await cabinsRepository.updateCabin(cabinId, {
+      isActive: input.isActive,
+    }),
+  );
 }

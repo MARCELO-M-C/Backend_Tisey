@@ -139,12 +139,12 @@ model Shift {
 }
 
 model LodgingRate {
-  id                       BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
-  amountPerPersonPerNight  Decimal  @map("amount_per_person_per_night") @db.Decimal(10, 2)
-  minimumChargeableAge     Int      @default(5) @map("minimum_chargeable_age") @db.UnsignedTinyInt
-  effectiveFrom            DateTime @unique(map: "uq_lodging_rates_effective_from") @map("effective_from") @db.Date
-  createdAt                DateTime @default(now()) @map("created_at") @db.DateTime(0)
-  stays                    Stay[]
+  id                      BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  amountPerPersonPerNight Decimal  @map("amount_per_person_per_night") @db.Decimal(10, 2)
+  minimumChargeableAge    Int      @default(5) @map("minimum_chargeable_age") @db.UnsignedTinyInt
+  effectiveFrom           DateTime @unique(map: "uq_lodging_rates_effective_from") @map("effective_from") @db.Date
+  createdAt               DateTime @default(now()) @map("created_at") @db.DateTime(0)
+  stays                   Stay[]
 
   @@map("lodging_rates")
 }
@@ -177,24 +177,24 @@ model Guest {
 }
 
 model Stay {
-  id                       BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
-  cabinId                  BigInt       @map("cabin_id") @db.UnsignedBigInt
-  primaryGuestId           BigInt       @map("primary_guest_id") @db.UnsignedBigInt
-  lodgingRateId            BigInt       @map("lodging_rate_id") @db.UnsignedBigInt
-  checkInDate              DateTime     @map("check_in_date") @db.Date
-  checkOutDate             DateTime     @map("check_out_date") @db.Date
-  ratePerPersonPerNight    Decimal      @map("rate_per_person_per_night") @db.Decimal(10, 2)
-  minimumChargeableAge     Int          @map("minimum_chargeable_age") @db.UnsignedTinyInt
-  status                   StayStatus   @default(CHECKED_IN)
-  createdBy                BigInt?      @map("created_by") @db.UnsignedBigInt
-  createdAt                DateTime     @default(now()) @map("created_at") @db.DateTime(0)
-  invoices                 Invoice[]
-  orders                   Order[]
-  stayGuests               StayGuest[]
-  cabin                    Cabin        @relation(fields: [cabinId], references: [id], onUpdate: Restrict, map: "fk_stay_cabin")
-  lodgingRate              LodgingRate  @relation(fields: [lodgingRateId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_stay_lodging_rate")
-  createdByUser            User?        @relation("StayCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_stay_createdby")
-  primaryGuest             Guest        @relation("StayPrimaryGuest", fields: [primaryGuestId], references: [id], onUpdate: Restrict, map: "fk_stay_guest")
+  id                    BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
+  cabinId               BigInt      @map("cabin_id") @db.UnsignedBigInt
+  primaryGuestId        BigInt      @map("primary_guest_id") @db.UnsignedBigInt
+  lodgingRateId         BigInt      @map("lodging_rate_id") @db.UnsignedBigInt
+  checkInDate           DateTime    @map("check_in_date") @db.Date
+  checkOutDate          DateTime    @map("check_out_date") @db.Date
+  ratePerPersonPerNight Decimal     @map("rate_per_person_per_night") @db.Decimal(10, 2)
+  minimumChargeableAge  Int         @map("minimum_chargeable_age") @db.UnsignedTinyInt
+  status                StayStatus  @default(CHECKED_IN)
+  createdBy             BigInt?     @map("created_by") @db.UnsignedBigInt
+  createdAt             DateTime    @default(now()) @map("created_at") @db.DateTime(0)
+  invoices              Invoice[]
+  orders                Order[]
+  stayGuests            StayGuest[]
+  cabin                 Cabin       @relation(fields: [cabinId], references: [id], onUpdate: Restrict, map: "fk_stay_cabin")
+  lodgingRate           LodgingRate @relation(fields: [lodgingRateId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_stay_lodging_rate")
+  createdByUser         User?       @relation("StayCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_stay_createdby")
+  primaryGuest          Guest       @relation("StayPrimaryGuest", fields: [primaryGuestId], references: [id], onUpdate: Restrict, map: "fk_stay_guest")
 
   @@index([checkInDate, checkOutDate], map: "idx_stays_dates")
   @@index([cabinId], map: "idx_stays_cabin")

@@ -20,14 +20,27 @@ export class GuestsServiceError extends Error {
 function normalizeOptionalText(value?: string | null): string | null | undefined {
   if (typeof value === "undefined") return undefined;
   if (value === null) return null;
-
   const trimmedValue = value.trim();
   return trimmedValue.length > 0 ? trimmedValue : null;
 }
 
+function ensureBirthDateIsValid(birthDate?: Date | null): void {
+  if (!birthDate) return;
+  const now = new Date();
+  const todayUtc = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+  if (birthDate > todayUtc) {
+    throw new GuestsServiceError(
+      400,
+      "GUEST_BIRTH_DATE_IN_FUTURE",
+      "La fecha de nacimiento no puede estar en el futuro.",
+    );
+  }
+}
+
 async function ensureGuestExists(guestId: bigint) {
   const guest = await guestsRepository.findGuestById(guestId);
-
   if (!guest) {
     throw new GuestsServiceError(
       404,
@@ -35,34 +48,32 @@ async function ensureGuestExists(guestId: bigint) {
       "Huésped no encontrado.",
     );
   }
-
   return guest;
 }
 
 export async function listGuests(
   filters: ListGuestsQueryInput,
 ): Promise<GuestResponseDto[]> {
-  const guests = await guestsRepository.listGuests(filters);
-  return guests.map(toGuestResponse);
+  return (await guestsRepository.listGuests(filters)).map(toGuestResponse);
 }
 
 export async function getGuestById(
   guestId: bigint,
 ): Promise<GuestResponseDto> {
-  const guest = await ensureGuestExists(guestId);
-  return toGuestResponse(guest);
+  return toGuestResponse(await ensureGuestExists(guestId));
 }
 
 export async function createGuest(
   input: CreateGuestBodyInput,
 ): Promise<GuestResponseDto> {
-  const createdGuest = await guestsRepository.createGuest({
+  ensureBirthDateIsValid(input.birthDate);
+  const guest = await guestsRepository.createGuest({
     fullName: input.fullName.trim(),
     idNumber: normalizeOptionalText(input.idNumber) ?? null,
     originPlace: normalizeOptionalText(input.originPlace) ?? null,
+    birthDate: input.birthDate ?? null,
   });
-
-  return toGuestResponse(createdGuest);
+  return toGuestResponse(guest);
 }
 
 export async function updateGuest(
@@ -70,8 +81,11 @@ export async function updateGuest(
   input: UpdateGuestBodyInput,
 ): Promise<GuestResponseDto> {
   await ensureGuestExists(guestId);
+  if (Object.prototype.hasOwnProperty.call(input, "birthDate")) {
+    ensureBirthDateIsValid(input.birthDate);
+  }
 
-  const updatedGuest = await guestsRepository.updateGuest(guestId, {
+  const guest = await guestsRepository.updateGuest(guestId, {
     ...(typeof input.fullName === "string"
       ? { fullName: input.fullName.trim() }
       : {}),
@@ -81,7 +95,9 @@ export async function updateGuest(
     ...(Object.prototype.hasOwnProperty.call(input, "originPlace")
       ? { originPlace: normalizeOptionalText(input.originPlace) ?? null }
       : {}),
+    ...(Object.prototype.hasOwnProperty.call(input, "birthDate")
+      ? { birthDate: input.birthDate ?? null }
+      : {}),
   });
-
-  return toGuestResponse(updatedGuest);
+  return toGuestResponse(guest);
 }

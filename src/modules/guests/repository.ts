@@ -7,6 +7,7 @@ const guestSelect = Prisma.validator<Prisma.GuestDefaultArgs>()({
     fullName: true,
     idNumber: true,
     originPlace: true,
+    birthDate: true,
     createdAt: true,
     _count: {
       select: {
@@ -28,12 +29,14 @@ export interface CreateGuestRepositoryInput {
   fullName: string;
   idNumber?: string | null;
   originPlace?: string | null;
+  birthDate?: Date | null;
 }
 
 export interface UpdateGuestRepositoryInput {
   fullName?: string;
   idNumber?: string | null;
   originPlace?: string | null;
+  birthDate?: Date | null;
 }
 
 export async function listGuests(
@@ -42,30 +45,14 @@ export async function listGuests(
   return prisma.guest.findMany({
     where: {
       ...(filters.idNumber
-        ? {
-            idNumber: {
-              contains: filters.idNumber,
-            },
-          }
+        ? { idNumber: { contains: filters.idNumber } }
         : {}),
       ...(filters.search
         ? {
             OR: [
-              {
-                fullName: {
-                  contains: filters.search,
-                },
-              },
-              {
-                idNumber: {
-                  contains: filters.search,
-                },
-              },
-              {
-                originPlace: {
-                  contains: filters.search,
-                },
-              },
+              { fullName: { contains: filters.search } },
+              { idNumber: { contains: filters.search } },
+              { originPlace: { contains: filters.search } },
             ],
           }
         : {}),
@@ -92,6 +79,7 @@ export async function createGuest(
       fullName: data.fullName,
       idNumber: data.idNumber ?? null,
       originPlace: data.originPlace ?? null,
+      birthDate: data.birthDate ?? null,
     },
     ...guestSelect,
   });

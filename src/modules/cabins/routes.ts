@@ -1,5 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
-import { authenticateRequest } from "../auth/service";
+import {
+  authenticateRequest,
+  authorizePermissions,
+} from "../auth/service";
 import {
   createCabinController,
   getCabinByIdController,
@@ -9,31 +12,12 @@ import {
   updateCabinStatusController,
 } from "./controller";
 
-const digitStringSchema = {
-  type: "string",
-  pattern: "^[0-9]+$",
-};
-
+const requireLodgingManage = authorizePermissions(["ADMIN_LODGING_MANAGE"]);
+const digitStringSchema = { type: "string", pattern: "^[0-9]+$" };
 const cabinStatusSchema = {
   type: "string",
   enum: ["AVAILABLE", "OCCUPIED", "MAINTENANCE"],
 };
-
-const moneySchema = {
-  anyOf: [
-    { type: "number", exclusiveMinimum: 0 },
-    { type: "string", pattern: "^\\d+(\\.\\d{1,2})?$" },
-  ],
-};
-
-const nullableMoneySchema = {
-  anyOf: [
-    { type: "number", exclusiveMinimum: 0 },
-    { type: "string", pattern: "^\\d+(\\.\\d{1,2})?$" },
-    { type: "null" },
-  ],
-};
-
 const basicErrorSchema = {
   type: "object",
   additionalProperties: true,
@@ -43,7 +27,6 @@ const basicErrorSchema = {
     code: { type: "string" },
   },
 };
-
 const cabinResponseSchema = {
   type: "object",
   additionalProperties: false,
@@ -52,7 +35,6 @@ const cabinResponseSchema = {
     "cabinNumber",
     "name",
     "capacity",
-    "basePricePerNight",
     "status",
     "isActive",
     "staysCount",
@@ -60,28 +42,19 @@ const cabinResponseSchema = {
   properties: {
     id: { type: "string" },
     cabinNumber: { type: "integer" },
-    name: {
-      anyOf: [{ type: "string" }, { type: "null" }],
-    },
+    name: { anyOf: [{ type: "string" }, { type: "null" }] },
     capacity: { type: "integer" },
-    basePricePerNight: {
-      anyOf: [{ type: "string" }, { type: "null" }],
-    },
     status: cabinStatusSchema,
     isActive: { type: "boolean" },
     staysCount: { type: "integer" },
   },
 };
-
 const cabinParamsSchema = {
   type: "object",
   additionalProperties: false,
   required: ["cabinId"],
-  properties: {
-    cabinId: digitStringSchema,
-  },
+  properties: { cabinId: digitStringSchema },
 };
-
 const listCabinsQuerystringSchema = {
   type: "object",
   additionalProperties: false,
@@ -92,7 +65,6 @@ const listCabinsQuerystringSchema = {
     minCapacity: digitStringSchema,
   },
 };
-
 const createCabinBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -103,12 +75,10 @@ const createCabinBodySchema = {
       anyOf: [{ type: "string", minLength: 1, maxLength: 80 }, { type: "null" }],
     },
     capacity: { type: "integer", minimum: 1, maximum: 100 },
-    basePricePerNight: nullableMoneySchema,
     status: cabinStatusSchema,
     isActive: { type: "boolean" },
   },
 };
-
 const updateCabinBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -119,26 +89,19 @@ const updateCabinBodySchema = {
       anyOf: [{ type: "string", minLength: 1, maxLength: 80 }, { type: "null" }],
     },
     capacity: { type: "integer", minimum: 1, maximum: 100 },
-    basePricePerNight: nullableMoneySchema,
   },
 };
-
 const updateCabinStatusBodySchema = {
   type: "object",
   additionalProperties: false,
   required: ["status"],
-  properties: {
-    status: cabinStatusSchema,
-  },
+  properties: { status: cabinStatusSchema },
 };
-
 const updateCabinActiveBodySchema = {
   type: "object",
   additionalProperties: false,
   required: ["isActive"],
-  properties: {
-    isActive: { type: "boolean" },
-  },
+  properties: { isActive: { type: "boolean" } },
 };
 
 const cabinsRoutes: FastifyPluginAsync = async (app) => {
@@ -152,10 +115,7 @@ const cabinsRoutes: FastifyPluginAsync = async (app) => {
         security: [{ bearerAuth: [] }],
         querystring: listCabinsQuerystringSchema,
         response: {
-          200: {
-            type: "array",
-            items: cabinResponseSchema,
-          },
+          200: { type: "array", items: cabinResponseSchema },
           401: basicErrorSchema,
         },
       },
@@ -185,7 +145,7 @@ const cabinsRoutes: FastifyPluginAsync = async (app) => {
   app.post(
     "/",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireLodgingManage],
       schema: {
         tags: ["Cabins"],
         summary: "Crear cabaña",
@@ -195,6 +155,7 @@ const cabinsRoutes: FastifyPluginAsync = async (app) => {
           201: cabinResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           409: basicErrorSchema,
         },
       },
@@ -205,7 +166,7 @@ const cabinsRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
     "/:cabinId",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireLodgingManage],
       schema: {
         tags: ["Cabins"],
         summary: "Actualizar cabaña",
@@ -216,6 +177,7 @@ const cabinsRoutes: FastifyPluginAsync = async (app) => {
           200: cabinResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -227,7 +189,7 @@ const cabinsRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
     "/:cabinId/status",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireLodgingManage],
       schema: {
         tags: ["Cabins"],
         summary: "Actualizar estado operativo de la cabaña",
@@ -238,6 +200,7 @@ const cabinsRoutes: FastifyPluginAsync = async (app) => {
           200: cabinResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -249,7 +212,7 @@ const cabinsRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
     "/:cabinId/active",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireLodgingManage],
       schema: {
         tags: ["Cabins"],
         summary: "Activar o desactivar cabaña",
@@ -260,6 +223,7 @@ const cabinsRoutes: FastifyPluginAsync = async (app) => {
           200: cabinResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },

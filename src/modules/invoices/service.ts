@@ -60,9 +60,7 @@ function parseUserId(value: string): bigint {
 }
 
 function normalizeOptionalText(value?: string | null): string | null {
-  if (typeof value === "undefined") return null;
-  if (value === null) return null;
-
+  if (typeof value === "undefined" || value === null) return null;
   const trimmedValue = value.trim();
   return trimmedValue.length > 0 ? trimmedValue : null;
 }
@@ -71,7 +69,6 @@ function generateInvoiceCode(): string {
   const randomSuffix = Math.floor(Math.random() * 1000)
     .toString()
     .padStart(3, "0");
-
   return `FAC-${Date.now()}-${randomSuffix}`;
 }
 
@@ -101,11 +98,9 @@ function calculateTotals(
     (sum, line) => sum.plus(line.lineTotal),
     new Prisma.Decimal(0),
   );
-
   const tax = new Prisma.Decimal(
     subtotal.mul(new Prisma.Decimal(taxRate)).div(100).toFixed(2),
   );
-
   return {
     subtotal,
     tax,
@@ -121,9 +116,7 @@ function calculateAmountPaid(invoice: invoicesRepository.InvoiceRecord) {
 }
 
 function calculateBalanceDue(invoice: invoicesRepository.InvoiceRecord) {
-  const amountPaid = calculateAmountPaid(invoice);
-  const balanceDue = invoice.total.minus(amountPaid);
-
+  const balanceDue = invoice.total.minus(calculateAmountPaid(invoice));
   return balanceDue.lessThan(0) ? new Prisma.Decimal(0) : balanceDue;
 }
 
@@ -141,7 +134,6 @@ function ensureInvoiceHasLines(
 
 async function ensureInvoiceExists(invoiceId: bigint) {
   const invoice = await invoicesRepository.findInvoiceById(invoiceId);
-
   if (!invoice) {
     throw new InvoicesServiceError(
       404,
@@ -149,7 +141,6 @@ async function ensureInvoiceExists(invoiceId: bigint) {
       "Factura no encontrada.",
     );
   }
-
   return invoice;
 }
 
@@ -177,11 +168,9 @@ function ensureOrderCanBeInvoiced(
     );
   }
 
-  const hasIssuedInvoice = order.invoices.some(
-    (invoice) => invoice.status === InvoiceStatus.ISSUED,
-  );
-
-  if (hasIssuedInvoice) {
+  if (
+    order.invoices.some((invoice) => invoice.status === InvoiceStatus.ISSUED)
+  ) {
     throw new InvoicesServiceError(
       409,
       "ORDER_ALREADY_INVOICED",
@@ -190,7 +179,9 @@ function ensureOrderCanBeInvoiced(
   }
 }
 
-function ensureStayCanBeInvoiced(stay: invoicesRepository.StayForInvoiceRecord) {
+function ensureStayCanBeInvoiced(
+  stay: invoicesRepository.StayForInvoiceRecord,
+) {
   if (stay.status === StayStatus.CANCELLED) {
     throw new InvoicesServiceError(
       409,
@@ -203,7 +194,6 @@ function ensureStayCanBeInvoiced(stay: invoicesRepository.StayForInvoiceRecord) 
     (invoice) =>
       invoice.status === InvoiceStatus.ISSUED && invoice.orderId === null,
   );
-
   if (hasIssuedStayInvoice) {
     throw new InvoicesServiceError(
       409,
@@ -216,8 +206,7 @@ function ensureStayCanBeInvoiced(stay: invoicesRepository.StayForInvoiceRecord) 
 function calculateNights(checkInDate: Date, checkOutDate: Date): number {
   const millisecondsPerDay = 24 * 60 * 60 * 1000;
   const diff = checkOutDate.getTime() - checkInDate.getTime();
-
-  return Math.max(1, Math.ceil(diff / millisecondsPerDay));
+  return Math.max(1, Math.round(diff / millisecondsPerDay));
 }
 
 export async function listInvoices(
@@ -227,15 +216,13 @@ export async function listInvoices(
     ...filters,
     status: filters.status as InvoiceStatus | undefined,
   });
-
   return invoices.map(toInvoiceResponse);
 }
 
 export async function getInvoiceById(
   invoiceId: bigint,
 ): Promise<InvoiceResponseDto> {
-  const invoice = await ensureInvoiceExists(invoiceId);
-  return toInvoiceResponse(invoice);
+  return toInvoiceResponse(await ensureInvoiceExists(invoiceId));
 }
 
 export async function createInvoiceFromOrder(
@@ -243,9 +230,7 @@ export async function createInvoiceFromOrder(
   actorUserId: string,
 ): Promise<InvoiceResponseDto> {
   const issuedBy = parseUserId(actorUserId);
-
   const order = await invoicesRepository.findOrderForInvoiceById(input.orderId);
-
   if (!order) {
     throw new InvoicesServiceError(
       404,
@@ -265,7 +250,6 @@ export async function createInvoiceFromOrder(
       unitPrice: item.unitPrice,
       orderItemId: item.id,
     }));
-
   const extraLines: BuildLineInput[] = input.extraLines.map((line) => ({
     source: InvoiceLineSource.EXTRA,
     description: line.description.trim(),
@@ -275,22 +259,21 @@ export async function createInvoiceFromOrder(
 
   const invoiceLines = buildInvoiceLines([...orderLines, ...extraLines]);
   ensureInvoiceHasLines(invoiceLines);
-
   const totals = calculateTotals(invoiceLines, input.taxRate);
 
-  const invoice = await invoicesRepository.createInvoice({
-    invoiceCode: generateInvoiceCode(),
-    issuedBy,
-    orderId: order.id,
-    stayId: order.stayId ?? null,
-    subtotal: totals.subtotal,
-    tax: totals.tax,
-    total: totals.total,
-    notes: normalizeOptionalText(input.notes),
-    lines: invoiceLines,
-  });
-
-  return toInvoiceResponse(invoice);
+  return toInvoiceResponse(
+    await invoicesRepository.createInvoice({
+      invoiceCode: generateInvoiceCode(),
+      issuedBy,
+      orderId: order.id,
+      stayId: order.stayId ?? null,
+      subtotal: totals.subtotal,
+      tax: totals.tax,
+      total: totals.total,
+      notes: normalizeOptionalText(input.notes),
+      lines: invoiceLines,
+    }),
+  );
 }
 
 export async function createInvoiceFromStay(
@@ -298,9 +281,7 @@ export async function createInvoiceFromStay(
   actorUserId: string,
 ): Promise<InvoiceResponseDto> {
   const issuedBy = parseUserId(actorUserId);
-
   const stay = await invoicesRepository.findStayForInvoiceById(input.stayId);
-
   if (!stay) {
     throw new InvoicesServiceError(
       404,
@@ -310,25 +291,30 @@ export async function createInvoiceFromStay(
   }
 
   ensureStayCanBeInvoiced(stay);
-
   const lines: BuildLineInput[] = [];
 
   if (input.includeRoomCharge) {
-    if (!stay.cabin.basePricePerNight) {
+    const nights = calculateNights(stay.checkInDate, stay.checkOutDate);
+    const chargeableGuestsCount = stay.stayGuests.filter(
+      (stayGuest) => stayGuest.isChargeable,
+    ).length;
+
+    if (chargeableGuestsCount === 0) {
       throw new InvoicesServiceError(
         400,
-        "CABIN_HAS_NO_BASE_PRICE",
-        "La cabaña no tiene precio base por noche configurado.",
+        "STAY_HAS_NO_CHARGEABLE_GUESTS",
+        "La estadía no tiene huéspedes cobrables para generar el cargo de hospedaje.",
       );
     }
 
-    const nights = calculateNights(stay.checkInDate, stay.checkOutDate);
-
+    const personNights = nights * chargeableGuestsCount;
     lines.push({
       source: InvoiceLineSource.ROOM,
-      description: `Hospedaje cabaña ${stay.cabin.cabinNumber}`,
-      quantity: nights,
-      unitPrice: stay.cabin.basePricePerNight,
+      description:
+        `Hospedaje cabaña ${stay.cabin.cabinNumber} — ` +
+        `${chargeableGuestsCount} persona(s) × ${nights} noche(s)`,
+      quantity: personNights,
+      unitPrice: stay.ratePerPersonPerNight,
     });
   }
 
@@ -337,20 +323,13 @@ export async function createInvoiceFromStay(
       const orderIsBillable =
         order.status === OrderStatus.DELIVERED ||
         order.status === OrderStatus.CLOSED;
-
       const orderAlreadyInvoiced = order.invoices.some(
         (invoice) => invoice.status === InvoiceStatus.ISSUED,
       );
-
-      if (!orderIsBillable || orderAlreadyInvoiced) {
-        continue;
-      }
+      if (!orderIsBillable || orderAlreadyInvoiced) continue;
 
       for (const item of order.items) {
-        if (item.itemStatus === OrderItemStatus.CANCELLED) {
-          continue;
-        }
-
+        if (item.itemStatus === OrderItemStatus.CANCELLED) continue;
         lines.push({
           source: InvoiceLineSource.RESTAURANT,
           description: `${order.orderCode} - ${item.itemName}`,
@@ -373,22 +352,21 @@ export async function createInvoiceFromStay(
 
   const invoiceLines = buildInvoiceLines(lines);
   ensureInvoiceHasLines(invoiceLines);
-
   const totals = calculateTotals(invoiceLines, input.taxRate);
 
-  const invoice = await invoicesRepository.createInvoice({
-    invoiceCode: generateInvoiceCode(),
-    issuedBy,
-    stayId: stay.id,
-    orderId: null,
-    subtotal: totals.subtotal,
-    tax: totals.tax,
-    total: totals.total,
-    notes: normalizeOptionalText(input.notes),
-    lines: invoiceLines,
-  });
-
-  return toInvoiceResponse(invoice);
+  return toInvoiceResponse(
+    await invoicesRepository.createInvoice({
+      invoiceCode: generateInvoiceCode(),
+      issuedBy,
+      stayId: stay.id,
+      orderId: null,
+      subtotal: totals.subtotal,
+      tax: totals.tax,
+      total: totals.total,
+      notes: normalizeOptionalText(input.notes),
+      lines: invoiceLines,
+    }),
+  );
 }
 
 export async function voidInvoice(
@@ -396,7 +374,6 @@ export async function voidInvoice(
   input: VoidInvoiceBodyInput,
 ): Promise<InvoiceResponseDto> {
   const invoice = await ensureInvoiceExists(invoiceId);
-
   if (invoice.status === InvoiceStatus.VOID) {
     throw new InvoicesServiceError(
       409,
@@ -404,10 +381,7 @@ export async function voidInvoice(
       "La factura ya está anulada.",
     );
   }
-
-  const amountPaid = calculateAmountPaid(invoice);
-
-  if (amountPaid.greaterThan(0)) {
+  if (calculateAmountPaid(invoice).greaterThan(0)) {
     throw new InvoicesServiceError(
       409,
       "INVOICE_HAS_PAYMENTS",
@@ -416,13 +390,12 @@ export async function voidInvoice(
   }
 
   const reason = normalizeOptionalText(input.reason);
-
-  const updatedInvoice = await invoicesRepository.updateInvoice(invoiceId, {
-    status: InvoiceStatus.VOID,
-    notes: reason ? `ANULADA: ${reason}` : invoice.notes,
-  });
-
-  return toInvoiceResponse(updatedInvoice);
+  return toInvoiceResponse(
+    await invoicesRepository.updateInvoice(invoiceId, {
+      status: InvoiceStatus.VOID,
+      notes: reason ? `ANULADA: ${reason}` : invoice.notes,
+    }),
+  );
 }
 
 export async function printInvoice(
@@ -431,7 +404,6 @@ export async function printInvoice(
 ): Promise<InvoiceResponseDto> {
   const printedBy = parseUserId(actorUserId);
   const invoice = await ensureInvoiceExists(invoiceId);
-
   if (invoice.status === InvoiceStatus.VOID) {
     throw new InvoicesServiceError(
       409,
@@ -440,29 +412,22 @@ export async function printInvoice(
     );
   }
 
-  const updatedInvoice = await invoicesRepository.updateInvoice(invoiceId, {
-    printedAt: new Date(),
-    printedByUser: {
-      connect: {
-        id: printedBy,
-      },
-    },
-    printCount: {
-      increment: 1,
-    },
-  });
-
-  return toInvoiceResponse(updatedInvoice);
+  return toInvoiceResponse(
+    await invoicesRepository.updateInvoice(invoiceId, {
+      printedAt: new Date(),
+      printedByUser: { connect: { id: printedBy } },
+      printCount: { increment: 1 },
+    }),
+  );
 }
 
 export async function listInvoicePayments(
   invoiceId: bigint,
 ): Promise<PaymentResponseDto[]> {
   await ensureInvoiceExists(invoiceId);
-
-  const payments = await invoicesRepository.listPaymentsByInvoice(invoiceId);
-
-  return payments.map(toPaymentResponse);
+  return (await invoicesRepository.listPaymentsByInvoice(invoiceId)).map(
+    toPaymentResponse,
+  );
 }
 
 export async function createPayment(
@@ -472,12 +437,10 @@ export async function createPayment(
 ): Promise<InvoiceResponseDto> {
   const receivedBy = parseUserId(actorUserId);
   const invoice = await ensureInvoiceExists(invoiceId);
-
   ensureInvoiceIsIssued(invoice);
 
   const amount = new Prisma.Decimal(input.amount);
   const balanceDue = calculateBalanceDue(invoice);
-
   if (balanceDue.lessThanOrEqualTo(0)) {
     throw new InvoicesServiceError(
       409,
@@ -485,7 +448,6 @@ export async function createPayment(
       "La factura ya está completamente pagada.",
     );
   }
-
   if (amount.greaterThan(balanceDue)) {
     throw new InvoicesServiceError(
       400,
@@ -494,14 +456,14 @@ export async function createPayment(
     );
   }
 
-  const updatedInvoice = await invoicesRepository.createPayment({
-    invoiceId,
-    method: input.method as PaymentMethod,
-    amount,
-    reference: normalizeOptionalText(input.reference),
-    paidAt: input.paidAt,
-    receivedBy,
-  });
-
-  return toInvoiceResponse(updatedInvoice);
+  return toInvoiceResponse(
+    await invoicesRepository.createPayment({
+      invoiceId,
+      method: input.method as PaymentMethod,
+      amount,
+      reference: normalizeOptionalText(input.reference),
+      paidAt: input.paidAt,
+      receivedBy,
+    }),
+  );
 }

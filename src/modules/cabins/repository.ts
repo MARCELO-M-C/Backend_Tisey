@@ -7,7 +7,6 @@ const cabinSelect = Prisma.validator<Prisma.CabinDefaultArgs>()({
     cabinNumber: true,
     name: true,
     capacity: true,
-    basePricePerNight: true,
     status: true,
     isActive: true,
     _count: {
@@ -31,7 +30,6 @@ export interface CreateCabinRepositoryInput {
   cabinNumber: number;
   name?: string | null;
   capacity: number;
-  basePricePerNight?: Prisma.Decimal | null;
   status: cabins_status;
   isActive: boolean;
 }
@@ -40,7 +38,6 @@ export interface UpdateCabinRepositoryInput {
   cabinNumber?: number;
   name?: string | null;
   capacity?: number;
-  basePricePerNight?: Prisma.Decimal | null;
   status?: cabins_status;
   isActive?: boolean;
 }
@@ -60,11 +57,7 @@ export async function listCabins(
       ...(filters.search
         ? {
             OR: [
-              {
-                name: {
-                  contains: filters.search,
-                },
-              },
+              { name: { contains: filters.search } },
               {
                 cabinNumber: Number.isNaN(Number(filters.search))
                   ? undefined
@@ -103,11 +96,35 @@ export async function countActiveStaysByCabin(
   return prisma.stay.count({
     where: {
       cabinId,
-      status: {
-        in: [StayStatus.BOOKED, StayStatus.CHECKED_IN],
+      status: { in: [StayStatus.BOOKED, StayStatus.CHECKED_IN] },
+    },
+  });
+}
+
+export async function findActiveStayExceedingCapacity(
+  cabinId: bigint,
+  capacity: number,
+): Promise<{ id: bigint; guestsCount: number } | null> {
+  const stays = await prisma.stay.findMany({
+    where: {
+      cabinId,
+      status: { in: [StayStatus.BOOKED, StayStatus.CHECKED_IN] },
+    },
+    select: {
+      id: true,
+      _count: {
+        select: { stayGuests: true },
       },
     },
   });
+
+  const exceedingStay = stays.find(
+    (stay) => stay._count.stayGuests > capacity,
+  );
+
+  return exceedingStay
+    ? { id: exceedingStay.id, guestsCount: exceedingStay._count.stayGuests }
+    : null;
 }
 
 export async function createCabin(
@@ -118,7 +135,6 @@ export async function createCabin(
       cabinNumber: data.cabinNumber,
       name: data.name ?? null,
       capacity: data.capacity,
-      basePricePerNight: data.basePricePerNight ?? null,
       status: data.status,
       isActive: data.isActive,
     },

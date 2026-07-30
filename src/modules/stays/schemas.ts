@@ -7,10 +7,19 @@ const bigintIdSchema = z
   ])
   .transform((value) => BigInt(value));
 
+function isValidDateOnly(value: string): boolean {
+  const parsedDate = new Date(`${value}T00:00:00.000Z`);
+  return (
+    !Number.isNaN(parsedDate.getTime()) &&
+    parsedDate.toISOString().slice(0, 10) === value
+  );
+}
+
 const dateOnlySchema = z
   .string()
   .trim()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Debe tener formato YYYY-MM-DD.")
+  .refine(isValidDateOnly, "Debe ser una fecha calendario válida.")
   .transform((value) => new Date(`${value}T00:00:00.000Z`));
 
 const stayStatusSchema = z.enum([
@@ -19,7 +28,7 @@ const stayStatusSchema = z.enum([
   "CHECKED_OUT",
   "CANCELLED",
 ]);
-
+const initialStayStatusSchema = z.enum(["BOOKED", "CHECKED_IN"]);
 const nullableNotesSchema = z
   .union([z.string().trim().min(1).max(255), z.null()])
   .optional();
@@ -56,7 +65,7 @@ export const createStayBodySchema = z
     primaryGuestId: bigintIdSchema,
     checkInDate: dateOnlySchema,
     checkOutDate: dateOnlySchema,
-    status: stayStatusSchema.optional().default("CHECKED_IN"),
+    status: initialStayStatusSchema.optional().default("CHECKED_IN"),
     guestIds: z.array(bigintIdSchema).optional().default([]),
   })
   .strict()

@@ -1,5 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
-import { authenticateRequest } from "../auth/service";
+import {
+  authenticateRequest,
+  authorizePermissions,
+} from "../auth/service";
 import {
   createGuestController,
   getGuestByIdController,
@@ -7,11 +10,15 @@ import {
   updateGuestController,
 } from "./controller";
 
-const digitStringSchema = {
+const requireLodgingManage = authorizePermissions(["ADMIN_LODGING_MANAGE"]);
+const digitStringSchema = { type: "string", pattern: "^[0-9]+$" };
+const dateOnlySchema = {
   type: "string",
-  pattern: "^[0-9]+$",
+  pattern: "^\\d{4}-\\d{2}-\\d{2}$",
 };
-
+const nullableDateOnlySchema = {
+  anyOf: [dateOnlySchema, { type: "null" }],
+};
 const basicErrorSchema = {
   type: "object",
   additionalProperties: true,
@@ -21,7 +28,6 @@ const basicErrorSchema = {
     code: { type: "string" },
   },
 };
-
 const guestResponseSchema = {
   type: "object",
   additionalProperties: false,
@@ -30,6 +36,7 @@ const guestResponseSchema = {
     "fullName",
     "idNumber",
     "originPlace",
+    "birthDate",
     "createdAt",
     "staysCount",
     "primaryStaysCount",
@@ -37,27 +44,20 @@ const guestResponseSchema = {
   properties: {
     id: { type: "string" },
     fullName: { type: "string" },
-    idNumber: {
-      anyOf: [{ type: "string" }, { type: "null" }],
-    },
-    originPlace: {
-      anyOf: [{ type: "string" }, { type: "null" }],
-    },
+    idNumber: { anyOf: [{ type: "string" }, { type: "null" }] },
+    originPlace: { anyOf: [{ type: "string" }, { type: "null" }] },
+    birthDate: nullableDateOnlySchema,
     createdAt: { type: "string" },
     staysCount: { type: "integer" },
     primaryStaysCount: { type: "integer" },
   },
 };
-
 const guestParamsSchema = {
   type: "object",
   additionalProperties: false,
   required: ["guestId"],
-  properties: {
-    guestId: digitStringSchema,
-  },
+  properties: { guestId: digitStringSchema },
 };
-
 const listGuestsQuerystringSchema = {
   type: "object",
   additionalProperties: false,
@@ -66,7 +66,6 @@ const listGuestsQuerystringSchema = {
     idNumber: { type: "string", minLength: 1, maxLength: 40 },
   },
 };
-
 const createGuestBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -82,9 +81,9 @@ const createGuestBodySchema = {
         { type: "null" },
       ],
     },
+    birthDate: nullableDateOnlySchema,
   },
 };
-
 const updateGuestBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -100,6 +99,7 @@ const updateGuestBodySchema = {
         { type: "null" },
       ],
     },
+    birthDate: nullableDateOnlySchema,
   },
 };
 
@@ -114,10 +114,7 @@ const guestsRoutes: FastifyPluginAsync = async (app) => {
         security: [{ bearerAuth: [] }],
         querystring: listGuestsQuerystringSchema,
         response: {
-          200: {
-            type: "array",
-            items: guestResponseSchema,
-          },
+          200: { type: "array", items: guestResponseSchema },
           401: basicErrorSchema,
         },
       },
@@ -147,7 +144,7 @@ const guestsRoutes: FastifyPluginAsync = async (app) => {
   app.post(
     "/",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireLodgingManage],
       schema: {
         tags: ["Guests"],
         summary: "Crear huésped",
@@ -157,6 +154,7 @@ const guestsRoutes: FastifyPluginAsync = async (app) => {
           201: guestResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
         },
       },
     },
@@ -166,7 +164,7 @@ const guestsRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
     "/:guestId",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireLodgingManage],
       schema: {
         tags: ["Guests"],
         summary: "Actualizar huésped",
@@ -177,6 +175,7 @@ const guestsRoutes: FastifyPluginAsync = async (app) => {
           200: guestResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
         },
       },
