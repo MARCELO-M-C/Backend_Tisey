@@ -1,5 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
-import { authenticateRequest } from "../auth/service";
+import {
+  authenticateRequest,
+  authorizePermissions,
+} from "../auth/service";
 import {
   createRestaurantTableController,
   getRestaurantTableByIdController,
@@ -12,7 +15,6 @@ const digitStringSchema = {
   type: "string",
   pattern: "^[0-9]+$",
 };
-
 const basicErrorSchema = {
   type: "object",
   additionalProperties: true,
@@ -22,7 +24,6 @@ const basicErrorSchema = {
     code: { type: "string" },
   },
 };
-
 const restaurantTableResponseSchema = {
   type: "object",
   additionalProperties: false,
@@ -40,7 +41,6 @@ const restaurantTableResponseSchema = {
     ordersCount: { type: "integer" },
   },
 };
-
 const restaurantTableParamsSchema = {
   type: "object",
   additionalProperties: false,
@@ -65,7 +65,6 @@ const listRestaurantTablesQuerystringSchema = {
     },
   },
 };
-
 const createRestaurantTableBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -91,7 +90,6 @@ const createRestaurantTableBodySchema = {
     },
   },
 };
-
 const updateRestaurantTableBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -114,7 +112,6 @@ const updateRestaurantTableBodySchema = {
     },
   },
 };
-
 const updateRestaurantTableStatusBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -125,6 +122,8 @@ const updateRestaurantTableStatusBodySchema = {
     },
   },
 };
+
+const requireTablesManage = authorizePermissions(["ADMIN_TABLES_MANAGE"]);
 
 const restaurantTablesRoutes: FastifyPluginAsync = async (app) => {
   app.get(
@@ -147,7 +146,6 @@ const restaurantTablesRoutes: FastifyPluginAsync = async (app) => {
     },
     listRestaurantTablesController,
   );
-
   app.get(
     "/:tableId",
     {
@@ -166,11 +164,10 @@ const restaurantTablesRoutes: FastifyPluginAsync = async (app) => {
     },
     getRestaurantTableByIdController,
   );
-
   app.post(
     "/",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireTablesManage],
       schema: {
         tags: ["Restaurant-Tables"],
         summary: "Crear mesa del restaurante",
@@ -180,17 +177,17 @@ const restaurantTablesRoutes: FastifyPluginAsync = async (app) => {
           201: restaurantTableResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           409: basicErrorSchema,
         },
       },
     },
     createRestaurantTableController,
   );
-
   app.patch(
     "/:tableId",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireTablesManage],
       schema: {
         tags: ["Restaurant-Tables"],
         summary: "Actualizar mesa del restaurante",
@@ -201,6 +198,7 @@ const restaurantTablesRoutes: FastifyPluginAsync = async (app) => {
           200: restaurantTableResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -208,11 +206,10 @@ const restaurantTablesRoutes: FastifyPluginAsync = async (app) => {
     },
     updateRestaurantTableController,
   );
-
   app.patch(
     "/:tableId/status",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireTablesManage],
       schema: {
         tags: ["Restaurant-Tables"],
         summary: "Activar o desactivar mesa",
@@ -223,6 +220,7 @@ const restaurantTablesRoutes: FastifyPluginAsync = async (app) => {
           200: restaurantTableResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -231,5 +229,4 @@ const restaurantTablesRoutes: FastifyPluginAsync = async (app) => {
     updateRestaurantTableStatusController,
   );
 };
-
 export default restaurantTablesRoutes;
