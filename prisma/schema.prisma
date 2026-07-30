@@ -138,15 +138,25 @@ model Shift {
   @@map("shifts")
 }
 
+model LodgingRate {
+  id                       BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  amountPerPersonPerNight  Decimal  @map("amount_per_person_per_night") @db.Decimal(10, 2)
+  minimumChargeableAge     Int      @default(5) @map("minimum_chargeable_age") @db.UnsignedTinyInt
+  effectiveFrom            DateTime @unique(map: "uq_lodging_rates_effective_from") @map("effective_from") @db.Date
+  createdAt                DateTime @default(now()) @map("created_at") @db.DateTime(0)
+  stays                    Stay[]
+
+  @@map("lodging_rates")
+}
+
 model Cabin {
-  id                BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
-  cabinNumber       Int           @unique(map: "cabin_number") @map("cabin_number")
-  name              String?       @db.VarChar(80)
-  capacity          Int
-  basePricePerNight Decimal?      @map("base_price_per_night") @db.Decimal(10, 2)
-  status            cabins_status @default(AVAILABLE)
-  isActive          Boolean       @default(true) @map("is_active")
-  stays             Stay[]
+  id          BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  cabinNumber Int           @unique(map: "cabin_number") @map("cabin_number")
+  name        String?       @db.VarChar(80)
+  capacity    Int
+  status      cabins_status @default(AVAILABLE)
+  isActive    Boolean       @default(true) @map("is_active")
+  stays       Stay[]
 
   @@map("cabins")
 }
@@ -156,6 +166,7 @@ model Guest {
   fullName     String      @map("full_name") @db.VarChar(160)
   idNumber     String?     @map("id_number") @db.VarChar(40)
   originPlace  String?     @map("origin_place") @db.VarChar(120)
+  birthDate    DateTime?   @map("birth_date") @db.Date
   createdAt    DateTime    @default(now()) @map("created_at") @db.DateTime(0)
   stayGuests   StayGuest[]
   primaryStays Stay[]      @relation("StayPrimaryGuest")
@@ -166,36 +177,44 @@ model Guest {
 }
 
 model Stay {
-  id             BigInt      @id @default(autoincrement()) @db.UnsignedBigInt
-  cabinId        BigInt      @map("cabin_id") @db.UnsignedBigInt
-  primaryGuestId BigInt      @map("primary_guest_id") @db.UnsignedBigInt
-  checkInDate    DateTime    @map("check_in_date") @db.Date
-  checkOutDate   DateTime    @map("check_out_date") @db.Date
-  status         StayStatus  @default(CHECKED_IN)
-  createdBy      BigInt?     @map("created_by") @db.UnsignedBigInt
-  createdAt      DateTime    @default(now()) @map("created_at") @db.DateTime(0)
-  invoices       Invoice[]
-  orders         Order[]
-  stayGuests     StayGuest[]
-  cabin          Cabin       @relation(fields: [cabinId], references: [id], onUpdate: Restrict, map: "fk_stay_cabin")
-  createdByUser  User?       @relation("StayCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_stay_createdby")
-  primaryGuest   Guest       @relation("StayPrimaryGuest", fields: [primaryGuestId], references: [id], onUpdate: Restrict, map: "fk_stay_guest")
+  id                       BigInt       @id @default(autoincrement()) @db.UnsignedBigInt
+  cabinId                  BigInt       @map("cabin_id") @db.UnsignedBigInt
+  primaryGuestId           BigInt       @map("primary_guest_id") @db.UnsignedBigInt
+  lodgingRateId            BigInt       @map("lodging_rate_id") @db.UnsignedBigInt
+  checkInDate              DateTime     @map("check_in_date") @db.Date
+  checkOutDate             DateTime     @map("check_out_date") @db.Date
+  ratePerPersonPerNight    Decimal      @map("rate_per_person_per_night") @db.Decimal(10, 2)
+  minimumChargeableAge     Int          @map("minimum_chargeable_age") @db.UnsignedTinyInt
+  status                   StayStatus   @default(CHECKED_IN)
+  createdBy                BigInt?      @map("created_by") @db.UnsignedBigInt
+  createdAt                DateTime     @default(now()) @map("created_at") @db.DateTime(0)
+  invoices                 Invoice[]
+  orders                   Order[]
+  stayGuests               StayGuest[]
+  cabin                    Cabin        @relation(fields: [cabinId], references: [id], onUpdate: Restrict, map: "fk_stay_cabin")
+  lodgingRate              LodgingRate  @relation(fields: [lodgingRateId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_stay_lodging_rate")
+  createdByUser            User?        @relation("StayCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_stay_createdby")
+  primaryGuest             Guest        @relation("StayPrimaryGuest", fields: [primaryGuestId], references: [id], onUpdate: Restrict, map: "fk_stay_guest")
 
   @@index([checkInDate, checkOutDate], map: "idx_stays_dates")
   @@index([cabinId], map: "idx_stays_cabin")
+  @@index([lodgingRateId], map: "idx_stays_lodging_rate")
   @@index([createdBy], map: "fk_stay_createdby")
   @@index([primaryGuestId], map: "fk_stay_guest")
   @@map("stays")
 }
 
 model StayGuest {
-  stayId  BigInt @map("stay_id") @db.UnsignedBigInt
-  guestId BigInt @map("guest_id") @db.UnsignedBigInt
-  guest   Guest  @relation(fields: [guestId], references: [id], onUpdate: Restrict, map: "fk_sg_guest")
-  stay    Stay   @relation(fields: [stayId], references: [id], onUpdate: Restrict, map: "fk_sg_stay")
+  stayId       BigInt  @map("stay_id") @db.UnsignedBigInt
+  guestId      BigInt  @map("guest_id") @db.UnsignedBigInt
+  ageAtCheckIn Int?    @map("age_at_check_in") @db.UnsignedTinyInt
+  isChargeable Boolean @default(true) @map("is_chargeable")
+  guest        Guest   @relation(fields: [guestId], references: [id], onUpdate: Restrict, map: "fk_sg_guest")
+  stay         Stay    @relation(fields: [stayId], references: [id], onUpdate: Restrict, map: "fk_sg_stay")
 
   @@id([stayId, guestId])
-  @@index([guestId], map: "fk_sg_guest")
+  @@index([guestId], map: "idx_stay_guests_guest")
+  @@index([stayId, isChargeable], map: "idx_stay_guests_chargeable")
   @@map("stay_guests")
 }
 
