@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
-  authenticateRequest,
+  authorizeAccess,
   authorizePermissions,
 } from "../auth/service";
 import {
@@ -13,6 +13,15 @@ import {
 } from "./controller";
 
 const requireLodgingManage = authorizePermissions(["ADMIN_LODGING_MANAGE"]);
+const requireStaysRead = authorizeAccess({
+  roles: ["MESERO", "CAJA"],
+  permissions: [
+    "ADMIN_LODGING_MANAGE",
+    "ADMIN_ORDERS_MANAGE",
+    "ADMIN_BILLING_MANAGE",
+  ],
+  permissionMode: "any",
+});
 
 const digitStringSchema = {
   type: "string",
@@ -244,7 +253,7 @@ const staysRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireStaysRead],
       schema: {
         tags: ["Stays"],
         summary: "Listar estadías",
@@ -253,6 +262,7 @@ const staysRoutes: FastifyPluginAsync = async (app) => {
         response: {
           200: { type: "array", items: stayResponseSchema },
           401: basicErrorSchema,
+          403: basicErrorSchema,
         },
       },
     },
@@ -262,7 +272,7 @@ const staysRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/:stayId",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireStaysRead],
       schema: {
         tags: ["Stays"],
         summary: "Obtener estadía por id",
@@ -271,6 +281,7 @@ const staysRoutes: FastifyPluginAsync = async (app) => {
         response: {
           200: stayResponseSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
         },
       },

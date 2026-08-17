@@ -47,7 +47,8 @@ export async function listOrdersController(
 ) {
   try {
     const query = listOrdersQuerySchema.parse(request.query ?? {});
-    const orders = await listOrders(query);
+    const currentUser = getRequestUser(request);
+    const orders = await listOrders(query, currentUser);
 
     return reply.status(200).send(orders);
   } catch (error) {
@@ -61,7 +62,8 @@ export async function getOrderByIdController(
 ) {
   try {
     const params = orderIdParamSchema.parse(request.params);
-    const order = await getOrderById(params.id);
+    const currentUser = getRequestUser(request);
+    const order = await getOrderById(params.id, currentUser);
 
     return reply.status(200).send(order);
   } catch (error) {
@@ -76,8 +78,7 @@ export async function createOrderController(
   try {
     const body = createOrderBodySchema.parse(request.body);
     const currentUser = getRequestUser(request);
-
-    const order = await createOrder(body, currentUser.sub);
+    const order = await createOrder(body, currentUser);
 
     return reply.status(201).send(order);
   } catch (error) {
@@ -93,8 +94,7 @@ export async function updateOrderController(
     const params = orderIdParamSchema.parse(request.params);
     const body = updateOrderBodySchema.parse(request.body);
     const currentUser = getRequestUser(request);
-
-    const order = await updateOrder(params.id, body, currentUser.sub);
+    const order = await updateOrder(params.id, body, currentUser);
 
     return reply.status(200).send(order);
   } catch (error) {
@@ -110,8 +110,7 @@ export async function addItemsToOrderController(
     const params = orderIdParamSchema.parse(request.params);
     const body = addOrderItemsBodySchema.parse(request.body);
     const currentUser = getRequestUser(request);
-
-    const order = await addItemsToOrder(params.id, body, currentUser.sub);
+    const order = await addItemsToOrder(params.id, body, currentUser);
 
     return reply.status(200).send(order);
   } catch (error) {
@@ -126,8 +125,7 @@ export async function sendOrderController(
   try {
     const params = orderIdParamSchema.parse(request.params);
     const currentUser = getRequestUser(request);
-
-    const order = await sendOrder(params.id, currentUser.sub);
+    const order = await sendOrder(params.id, currentUser);
 
     return reply.status(200).send(order);
   } catch (error) {
@@ -143,8 +141,7 @@ export async function cancelOrderController(
     const params = orderIdParamSchema.parse(request.params);
     const body = cancelOrderBodySchema.parse(request.body);
     const currentUser = getRequestUser(request);
-
-    const order = await cancelOrder(params.id, body, currentUser.sub);
+    const order = await cancelOrder(params.id, body, currentUser);
 
     return reply.status(200).send(order);
   } catch (error) {
@@ -165,7 +162,7 @@ export async function updateOrderItemStatusController(
       params.id,
       params.itemId,
       body,
-      currentUser.sub,
+      currentUser,
     );
 
     return reply.status(200).send(order);

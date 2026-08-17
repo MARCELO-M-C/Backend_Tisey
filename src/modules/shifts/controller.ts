@@ -41,7 +41,8 @@ export async function listShiftsController(
 ) {
   try {
     const query = listShiftsQuerySchema.parse(request.query ?? {});
-    const shifts = await listShifts(query);
+    const currentUser = getRequestUser(request);
+    const shifts = await listShifts(query, currentUser);
 
     return reply.status(200).send(shifts);
   } catch (error) {
@@ -55,7 +56,8 @@ export async function getShiftByIdController(
 ) {
   try {
     const params = shiftIdParamSchema.parse(request.params);
-    const shift = await getShiftById(params.shiftId);
+    const currentUser = getRequestUser(request);
+    const shift = await getShiftById(params.shiftId, currentUser);
 
     return reply.status(200).send(shift);
   } catch (error) {
@@ -70,7 +72,7 @@ export async function createShiftController(
   try {
     const body = createShiftBodySchema.parse(request.body ?? {});
     const currentUser = getRequestUser(request);
-    const shift = await createShift(body, currentUser.sub);
+    const shift = await createShift(body, currentUser);
 
     return reply.status(201).send(shift);
   } catch (error) {
@@ -85,7 +87,8 @@ export async function updateShiftController(
   try {
     const params = shiftIdParamSchema.parse(request.params);
     const body = updateShiftBodySchema.parse(request.body);
-    const shift = await updateShift(params.shiftId, body);
+    const currentUser = getRequestUser(request);
+    const shift = await updateShift(params.shiftId, body, currentUser);
 
     return reply.status(200).send(shift);
   } catch (error) {
@@ -100,7 +103,8 @@ export async function endShiftController(
   try {
     const params = shiftIdParamSchema.parse(request.params);
     const body = endShiftBodySchema.parse(request.body ?? {});
-    const shift = await endShift(params.shiftId, body);
+    const currentUser = getRequestUser(request);
+    const shift = await endShift(params.shiftId, body, currentUser);
 
     return reply.status(200).send(shift);
   } catch (error) {

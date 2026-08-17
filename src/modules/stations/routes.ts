@@ -1,5 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
-import { authenticateRequest } from "../auth/service";
+import {
+  authorizeAccess,
+  authorizePermissions,
+} from "../auth/service";
 import {
   createStationController,
   getStationByIdController,
@@ -7,6 +10,22 @@ import {
   updateStationController,
   updateStationStatusController,
 } from "./controller";
+
+const STATIONS_MANAGE_PERMISSION = "ADMIN_SHIFTS_&_STATIONS_MANAGE";
+
+const requireStationsRead = authorizeAccess({
+  roles: ["COCINA"],
+  permissions: [
+    STATIONS_MANAGE_PERMISSION,
+    "ADMIN_KITCHEN_MANAGE",
+    "ADMIN_MENU_MANAGE",
+  ],
+  permissionMode: "any",
+});
+
+const requireStationsManage = authorizePermissions([
+  STATIONS_MANAGE_PERMISSION,
+]);
 
 const digitStringSchema = {
   type: "string",
@@ -106,7 +125,7 @@ const stationsRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireStationsRead],
       schema: {
         tags: ["Stations"],
         summary: "Listar estaciones",
@@ -118,6 +137,7 @@ const stationsRoutes: FastifyPluginAsync = async (app) => {
             items: stationResponseSchema,
           },
           401: basicErrorSchema,
+          403: basicErrorSchema,
         },
       },
     },
@@ -127,7 +147,7 @@ const stationsRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/:stationId",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireStationsRead],
       schema: {
         tags: ["Stations"],
         summary: "Obtener estación por id",
@@ -136,6 +156,7 @@ const stationsRoutes: FastifyPluginAsync = async (app) => {
         response: {
           200: stationResponseSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
         },
       },
@@ -146,7 +167,7 @@ const stationsRoutes: FastifyPluginAsync = async (app) => {
   app.post(
     "/",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireStationsManage],
       schema: {
         tags: ["Stations"],
         summary: "Crear estación",
@@ -156,6 +177,7 @@ const stationsRoutes: FastifyPluginAsync = async (app) => {
           201: stationResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           409: basicErrorSchema,
         },
       },
@@ -166,7 +188,7 @@ const stationsRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
     "/:stationId",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireStationsManage],
       schema: {
         tags: ["Stations"],
         summary: "Actualizar estación",
@@ -177,6 +199,7 @@ const stationsRoutes: FastifyPluginAsync = async (app) => {
           200: stationResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -188,7 +211,7 @@ const stationsRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
     "/:stationId/status",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireStationsManage],
       schema: {
         tags: ["Stations"],
         summary: "Activar o desactivar estación",
@@ -199,6 +222,7 @@ const stationsRoutes: FastifyPluginAsync = async (app) => {
           200: stationResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },

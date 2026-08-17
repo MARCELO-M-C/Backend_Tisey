@@ -1,5 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
-import { authenticateRequest } from "../auth/service";
+import {
+  authorizeAccess,
+  authorizePermissions,
+} from "../auth/service";
 import {
   createShiftController,
   endShiftController,
@@ -7,6 +10,22 @@ import {
   listShiftsController,
   updateShiftController,
 } from "./controller";
+
+const SHIFTS_PERMISSION = "ADMIN_SHIFTS_&_STATIONS_MANAGE";
+
+const requireShiftsRead = authorizeAccess({
+  roles: ["MESERO"],
+  permissions: [SHIFTS_PERMISSION, "ADMIN_ORDERS_MANAGE"],
+  permissionMode: "any",
+});
+
+const requireShiftSelfOrManage = authorizeAccess({
+  roles: ["MESERO"],
+  permissions: [SHIFTS_PERMISSION],
+  permissionMode: "any",
+});
+
+const requireShiftsManage = authorizePermissions([SHIFTS_PERMISSION]);
 
 const digitStringSchema = {
   type: "string",
@@ -65,16 +84,10 @@ const shiftResponseSchema = {
   ],
   properties: {
     id: { type: "string" },
-    startedAt: {
-      type: "string",
-    },
-    endedAt: {
-      anyOf: [{ type: "string" }, { type: "null" }],
-    },
+    startedAt: { type: "string" },
+    endedAt: { anyOf: [{ type: "string" }, { type: "null" }] },
     isOpen: { type: "boolean" },
-    notes: {
-      anyOf: [{ type: "string" }, { type: "null" }],
-    },
+    notes: { anyOf: [{ type: "string" }, { type: "null" }] },
     user: userSummarySchema,
     ordersCount: { type: "integer" },
   },
@@ -113,7 +126,7 @@ const createShiftBodySchema = {
     userId: {
       ...positiveBodyIdSchema,
       description:
-        "Opcional. Si no se envía, se crea el turno para el usuario autenticado.",
+        "Opcional. MESERO solo puede abrir su propio turno; ADMIN o quien tenga ADMIN_SHIFTS_&_STATIONS_MANAGE puede abrirlo para otro usuario.",
     },
     startedAt: isoDateTimeSchema,
     notes: nullableNotesSchema,
@@ -146,7 +159,7 @@ const shiftsRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireShiftsRead],
       schema: {
         tags: ["Shifts"],
         summary: "Listar turnos",
@@ -158,6 +171,7 @@ const shiftsRoutes: FastifyPluginAsync = async (app) => {
             items: shiftResponseSchema,
           },
           401: basicErrorSchema,
+          403: basicErrorSchema,
         },
       },
     },
@@ -167,7 +181,7 @@ const shiftsRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/:shiftId",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireShiftsRead],
       schema: {
         tags: ["Shifts"],
         summary: "Obtener turno por id",
@@ -176,6 +190,7 @@ const shiftsRoutes: FastifyPluginAsync = async (app) => {
         response: {
           200: shiftResponseSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
         },
       },
@@ -186,7 +201,7 @@ const shiftsRoutes: FastifyPluginAsync = async (app) => {
   app.post(
     "/",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireShiftSelfOrManage],
       schema: {
         tags: ["Shifts"],
         summary: "Crear turno",
@@ -208,7 +223,7 @@ const shiftsRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
     "/:shiftId",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireShiftsManage],
       schema: {
         tags: ["Shifts"],
         summary: "Actualizar turno abierto",
@@ -219,6 +234,7 @@ const shiftsRoutes: FastifyPluginAsync = async (app) => {
           200: shiftResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -230,7 +246,7 @@ const shiftsRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
     "/:shiftId/end",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireShiftSelfOrManage],
       schema: {
         tags: ["Shifts"],
         summary: "Cerrar turno",
@@ -241,6 +257,7 @@ const shiftsRoutes: FastifyPluginAsync = async (app) => {
           200: shiftResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },

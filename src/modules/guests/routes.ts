@@ -1,6 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
-  authenticateRequest,
   authorizePermissions,
 } from "../auth/service";
 import {
@@ -107,7 +106,7 @@ const guestsRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireLodgingManage],
       schema: {
         tags: ["Guests"],
         summary: "Listar huéspedes",
@@ -116,6 +115,7 @@ const guestsRoutes: FastifyPluginAsync = async (app) => {
         response: {
           200: { type: "array", items: guestResponseSchema },
           401: basicErrorSchema,
+          403: basicErrorSchema,
         },
       },
     },
@@ -125,7 +125,7 @@ const guestsRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/:guestId",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireLodgingManage],
       schema: {
         tags: ["Guests"],
         summary: "Obtener huésped por id",
@@ -134,6 +134,7 @@ const guestsRoutes: FastifyPluginAsync = async (app) => {
         response: {
           200: guestResponseSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
         },
       },

@@ -6,6 +6,12 @@ import {
   ServiceMode,
   StayStatus,
 } from "@prisma/client";
+import type { AuthTokenPayload } from "../auth/mapper";
+import {
+  isAdminRequestUser,
+  requestUserHasPermission,
+  requestUserHasRole,
+} from "../auth/service";
 import { toOrderResponse, type OrderResponseDto } from "./mapper";
 import * as ordersRepository from "./repository";
 import type {
@@ -17,6 +23,9 @@ import type {
   UpdateOrderBodyInput,
   UpdateOrderItemStatusBodyInput,
 } from "./schemas";
+
+const ORDERS_MANAGE_PERMISSION = "ADMIN_ORDERS_MANAGE";
+const KITCHEN_MANAGE_PERMISSION = "ADMIN_KITCHEN_MANAGE";
 
 export class OrdersServiceError extends Error {
   constructor(
@@ -45,6 +54,42 @@ function dedupeBigIntArray(values: bigint[]): bigint[] {
   return Array.from(
     new Map(values.map((value) => [value.toString(), value])).values(),
   );
+}
+
+function actorCanManageOrders(actor: AuthTokenPayload): boolean {
+  return (
+    isAdminRequestUser(actor) ||
+    requestUserHasPermission(actor, ORDERS_MANAGE_PERMISSION)
+  );
+}
+
+function actorIsOperationalWaiter(actor: AuthTokenPayload): boolean {
+  return requestUserHasRole(actor, "MESERO") && !actorCanManageOrders(actor);
+}
+
+function actorCanUseKitchenTransitions(actor: AuthTokenPayload): boolean {
+  return (
+    requestUserHasRole(actor, "COCINA") ||
+    requestUserHasPermission(actor, KITCHEN_MANAGE_PERMISSION)
+  );
+}
+
+function assertWaiterOwnsOrder(
+  actor: AuthTokenPayload,
+  order: Awaited<ReturnType<typeof ensureOrderExists>>,
+): void {
+  if (!actorIsOperationalWaiter(actor)) return;
+
+  const actorId = parseUserId(actor.sub);
+  const isOwner = order.waiterId === actorId || order.createdBy === actorId;
+
+  if (!isOwner) {
+    throw new OrdersServiceError(
+      403,
+      "ORDER_ACCESS_FORBIDDEN",
+      "No puedes administrar una orden asignada a otro mesero.",
+    );
+  }
 }
 
 async function ensureUserExists(userId: bigint) {
@@ -247,6 +292,14 @@ async function validateOrderContext(input: {
       );
     }
 
+    if (shift.endedAt) {
+      throw new OrdersServiceError(
+        400,
+        "SHIFT_CLOSED",
+        "No se puede asociar una orden a un turno cerrado.",
+      );
+    }
+
     if (input.waiterId && shift.userId !== input.waiterId) {
       throw new OrdersServiceError(
         400,
@@ -260,7 +313,9 @@ async function validateOrderContext(input: {
 async function resolveMenuItemSnapshots(
   items: CreateOrderItemInput[],
 ): Promise<ordersRepository.CreateOrderItemSnapshotInput[]> {
-  const uniqueMenuItemIds = dedupeBigIntArray(items.map((item) => item.menuItemId));
+  const uniqueMenuItemIds = dedupeBigIntArray(
+    items.map((item) => item.menuItemId),
+  );
   const menuItems = await ordersRepository.findMenuItemsByIds(uniqueMenuItemIds);
 
   if (menuItems.length !== uniqueMenuItemIds.length) {
@@ -276,7 +331,9 @@ async function resolveMenuItemSnapshots(
     );
   }
 
-  const menuItemMap = new Map(menuItems.map((item) => [item.id.toString(), item]));
+  const menuItemMap = new Map(
+    menuItems.map((item) => [item.id.toString(), item]),
+  );
 
   return items.map((item) => {
     const menuItem = menuItemMap.get(item.menuItemId.toString());
@@ -391,31 +448,128 @@ function assertItemStatusTransition(
   }
 }
 
+function assertItemStatusTransitionForActor(
+  actor: AuthTokenPayload,
+  currentStatus: OrderItemStatus,
+  nextStatus: OrderItemStatus,
+): void {
+  if (actorCanManageOrders(actor)) {
+    assertItemStatusTransition(currentStatus, nextStatus);
+    return;
+  }
+
+  if (actorCanUseKitchenTransitions(actor)) {
+    const kitchenTransitionIsAllowed =
+      (currentStatus === OrderItemStatus.PENDING &&
+        nextStatus === OrderItemStatus.IN_PROGRESS) ||
+      (currentStatus === OrderItemStatus.IN_PROGRESS &&
+        nextStatus === OrderItemStatus.READY);
+
+    if (!kitchenTransitionIsAllowed) {
+      throw new OrdersServiceError(
+        403,
+        "KITCHEN_ITEM_TRANSITION_FORBIDDEN",
+        "Cocina solo puede iniciar la preparación o marcar un ítem como listo.",
+      );
+    }
+
+    return;
+  }
+
+  if (actorIsOperationalWaiter(actor)) {
+    if (
+      currentStatus !== OrderItemStatus.READY ||
+      nextStatus !== OrderItemStatus.DELIVERED
+    ) {
+      throw new OrdersServiceError(
+        403,
+        "WAITER_ITEM_TRANSITION_FORBIDDEN",
+        "El mesero solo puede marcar como entregado un ítem que ya está listo.",
+      );
+    }
+
+    return;
+  }
+
+  throw new OrdersServiceError(
+    403,
+    "ORDER_ITEM_STATUS_FORBIDDEN",
+    "No tienes autorización para cambiar el estado de este ítem.",
+  );
+}
+
 export async function listOrders(
   filters: ListOrdersQueryInput,
+  actor: AuthTokenPayload,
 ): Promise<OrderResponseDto[]> {
+  if (actorIsOperationalWaiter(actor)) {
+    const actorId = parseUserId(actor.sub);
+
+    if (filters.waiterId && filters.waiterId !== actorId) {
+      throw new OrdersServiceError(
+        403,
+        "ORDER_ACCESS_FORBIDDEN",
+        "No puedes consultar órdenes asignadas a otro mesero.",
+      );
+    }
+
+    if (filters.createdBy && filters.createdBy !== actorId) {
+      throw new OrdersServiceError(
+        403,
+        "ORDER_ACCESS_FORBIDDEN",
+        "No puedes consultar órdenes creadas por otro usuario.",
+      );
+    }
+
+    const orders = await ordersRepository.listOrders({
+      ...filters,
+      waiterId: actorId,
+    });
+
+    return orders.map(toOrderResponse);
+  }
+
   const orders = await ordersRepository.listOrders(filters);
   return orders.map(toOrderResponse);
 }
 
-export async function getOrderById(orderId: bigint): Promise<OrderResponseDto> {
+export async function getOrderById(
+  orderId: bigint,
+  actor: AuthTokenPayload,
+): Promise<OrderResponseDto> {
   const order = await ensureOrderExists(orderId);
+  assertWaiterOwnsOrder(actor, order);
+
   return toOrderResponse(order);
 }
 
 export async function createOrder(
   input: CreateOrderBodyInput,
-  actorUserId: string,
+  actor: AuthTokenPayload,
 ): Promise<OrderResponseDto> {
-  const actorId = parseUserId(actorUserId);
+  const actorId = parseUserId(actor.sub);
   await ensureUserExists(actorId);
+
+  let resolvedWaiterId = input.waiterId ?? null;
+
+  if (actorIsOperationalWaiter(actor)) {
+    if (input.waiterId && input.waiterId !== actorId) {
+      throw new OrdersServiceError(
+        403,
+        "WAITER_ASSIGNMENT_FORBIDDEN",
+        "Un mesero solo puede crear órdenes asignadas a sí mismo.",
+      );
+    }
+
+    resolvedWaiterId = actorId;
+  }
 
   await validateOrderContext({
     channel: input.channel,
     serviceMode: input.serviceMode,
     tableId: input.tableId,
     stayId: input.stayId,
-    waiterId: input.waiterId,
+    waiterId: resolvedWaiterId,
     shiftId: input.shiftId,
   });
 
@@ -430,7 +584,7 @@ export async function createOrder(
     tableId: input.tableId ?? null,
     stayId: input.stayId ?? null,
     createdBy: actorId,
-    waiterId: input.waiterId ?? null,
+    waiterId: resolvedWaiterId,
     shiftId: input.shiftId ?? null,
     notes: input.notes?.trim() || null,
     items,
@@ -443,12 +597,13 @@ export async function createOrder(
 export async function updateOrder(
   orderId: bigint,
   input: UpdateOrderBodyInput,
-  actorUserId: string,
+  actor: AuthTokenPayload,
 ): Promise<OrderResponseDto> {
-  const actorId = parseUserId(actorUserId);
+  const actorId = parseUserId(actor.sub);
   await ensureUserExists(actorId);
 
   const currentOrder = await ensureOrderExists(orderId);
+  assertWaiterOwnsOrder(actor, currentOrder);
 
   if (currentOrder.status !== OrderStatus.DRAFT) {
     throw new OrdersServiceError(
@@ -460,22 +615,35 @@ export async function updateOrder(
 
   const nextChannel = input.channel ?? currentOrder.channel;
   const nextServiceMode = input.serviceMode ?? currentOrder.serviceMode;
-  const nextTableId =
-    Object.prototype.hasOwnProperty.call(input, "tableId")
-      ? (input.tableId ?? null)
-      : (currentOrder.tableId ?? null);
-  const nextStayId =
-    Object.prototype.hasOwnProperty.call(input, "stayId")
-      ? (input.stayId ?? null)
-      : (currentOrder.stayId ?? null);
-  const nextWaiterId =
-    Object.prototype.hasOwnProperty.call(input, "waiterId")
-      ? (input.waiterId ?? null)
-      : (currentOrder.waiterId ?? null);
-  const nextShiftId =
-    Object.prototype.hasOwnProperty.call(input, "shiftId")
-      ? (input.shiftId ?? null)
-      : (currentOrder.shiftId ?? null);
+  const nextTableId = Object.prototype.hasOwnProperty.call(input, "tableId")
+    ? (input.tableId ?? null)
+    : (currentOrder.tableId ?? null);
+  const nextStayId = Object.prototype.hasOwnProperty.call(input, "stayId")
+    ? (input.stayId ?? null)
+    : (currentOrder.stayId ?? null);
+
+  let nextWaiterId = Object.prototype.hasOwnProperty.call(input, "waiterId")
+    ? (input.waiterId ?? null)
+    : (currentOrder.waiterId ?? null);
+
+  if (actorIsOperationalWaiter(actor)) {
+    if (
+      Object.prototype.hasOwnProperty.call(input, "waiterId") &&
+      input.waiterId !== actorId
+    ) {
+      throw new OrdersServiceError(
+        403,
+        "WAITER_ASSIGNMENT_FORBIDDEN",
+        "No puedes reasignar tu orden a otro usuario.",
+      );
+    }
+
+    nextWaiterId = actorId;
+  }
+
+  const nextShiftId = Object.prototype.hasOwnProperty.call(input, "shiftId")
+    ? (input.shiftId ?? null)
+    : (currentOrder.shiftId ?? null);
 
   await validateOrderContext({
     channel: nextChannel,
@@ -500,9 +668,11 @@ export async function updateOrder(
       ...(Object.prototype.hasOwnProperty.call(input, "stayId")
         ? { stayId: input.stayId ?? null }
         : {}),
-      ...(Object.prototype.hasOwnProperty.call(input, "waiterId")
-        ? { waiterId: input.waiterId ?? null }
-        : {}),
+      ...(actorIsOperationalWaiter(actor)
+        ? { waiterId: actorId }
+        : Object.prototype.hasOwnProperty.call(input, "waiterId")
+          ? { waiterId: input.waiterId ?? null }
+          : {}),
       ...(Object.prototype.hasOwnProperty.call(input, "shiftId")
         ? { shiftId: input.shiftId ?? null }
         : {}),
@@ -519,12 +689,13 @@ export async function updateOrder(
 export async function addItemsToOrder(
   orderId: bigint,
   input: AddOrderItemsBodyInput,
-  actorUserId: string,
+  actor: AuthTokenPayload,
 ): Promise<OrderResponseDto> {
-  const actorId = parseUserId(actorUserId);
+  const actorId = parseUserId(actor.sub);
   await ensureUserExists(actorId);
 
   const order = await ensureOrderExists(orderId);
+  assertWaiterOwnsOrder(actor, order);
 
   if (order.status !== OrderStatus.DRAFT) {
     throw new OrdersServiceError(
@@ -535,19 +706,24 @@ export async function addItemsToOrder(
   }
 
   const items = await resolveMenuItemSnapshots(input.items);
-  const updatedOrder = await ordersRepository.addItemsToOrder(orderId, items, actorId);
+  const updatedOrder = await ordersRepository.addItemsToOrder(
+    orderId,
+    items,
+    actorId,
+  );
 
   return toOrderResponse(updatedOrder);
 }
 
 export async function sendOrder(
   orderId: bigint,
-  actorUserId: string,
+  actor: AuthTokenPayload,
 ): Promise<OrderResponseDto> {
-  const actorId = parseUserId(actorUserId);
+  const actorId = parseUserId(actor.sub);
   await ensureUserExists(actorId);
 
   const order = await ensureOrderExists(orderId);
+  assertWaiterOwnsOrder(actor, order);
 
   if (order.status !== OrderStatus.DRAFT) {
     throw new OrdersServiceError(
@@ -576,12 +752,13 @@ export async function sendOrder(
 export async function cancelOrder(
   orderId: bigint,
   input: CancelOrderBodyInput,
-  actorUserId: string,
+  actor: AuthTokenPayload,
 ): Promise<OrderResponseDto> {
-  const actorId = parseUserId(actorUserId);
+  const actorId = parseUserId(actor.sub);
   await ensureUserExists(actorId);
 
   const order = await ensureOrderExists(orderId);
+  assertWaiterOwnsOrder(actor, order);
 
   if (order.status === OrderStatus.CANCELLED) {
     throw new OrdersServiceError(
@@ -612,12 +789,16 @@ export async function updateOrderItemStatus(
   orderId: bigint,
   itemId: bigint,
   input: UpdateOrderItemStatusBodyInput,
-  actorUserId: string,
+  actor: AuthTokenPayload,
 ): Promise<OrderResponseDto> {
-  const actorId = parseUserId(actorUserId);
+  const actorId = parseUserId(actor.sub);
   await ensureUserExists(actorId);
 
   const order = await ensureOrderExists(orderId);
+
+  if (actorIsOperationalWaiter(actor)) {
+    assertWaiterOwnsOrder(actor, order);
+  }
 
   if (order.status === OrderStatus.DRAFT) {
     throw new OrdersServiceError(
@@ -627,7 +808,10 @@ export async function updateOrderItemStatus(
     );
   }
 
-  if (order.status === OrderStatus.CANCELLED || order.status === OrderStatus.CLOSED) {
+  if (
+    order.status === OrderStatus.CANCELLED ||
+    order.status === OrderStatus.CLOSED
+  ) {
     throw new OrdersServiceError(
       409,
       "ORDER_NOT_EDITABLE",
@@ -645,9 +829,13 @@ export async function updateOrderItemStatus(
     );
   }
 
-  assertItemStatusTransition(item.itemStatus, input.status);
+  assertItemStatusTransitionForActor(actor, item.itemStatus, input.status);
 
-  const nextOrderStatus = deriveOrderStatusFromItems(order, itemId, input.status);
+  const nextOrderStatus = deriveOrderStatusFromItems(
+    order,
+    itemId,
+    input.status,
+  );
 
   const updatedOrder = await ordersRepository.updateOrderItemStatus({
     orderId,

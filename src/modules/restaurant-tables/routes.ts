@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
-  authenticateRequest,
+  authorizeAccess,
   authorizePermissions,
 } from "../auth/service";
 import {
@@ -124,12 +124,17 @@ const updateRestaurantTableStatusBodySchema = {
 };
 
 const requireTablesManage = authorizePermissions(["ADMIN_TABLES_MANAGE"]);
+const requireTablesRead = authorizeAccess({
+  roles: ["MESERO"],
+  permissions: ["ADMIN_TABLES_MANAGE", "ADMIN_ORDERS_MANAGE"],
+  permissionMode: "any",
+});
 
 const restaurantTablesRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireTablesRead],
       schema: {
         tags: ["Restaurant-Tables"],
         summary: "Listar mesas del restaurante",
@@ -141,6 +146,7 @@ const restaurantTablesRoutes: FastifyPluginAsync = async (app) => {
             items: restaurantTableResponseSchema,
           },
           401: basicErrorSchema,
+          403: basicErrorSchema,
         },
       },
     },
@@ -149,7 +155,7 @@ const restaurantTablesRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/:tableId",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireTablesRead],
       schema: {
         tags: ["Restaurant-Tables"],
         summary: "Obtener mesa por id",
@@ -158,6 +164,7 @@ const restaurantTablesRoutes: FastifyPluginAsync = async (app) => {
         response: {
           200: restaurantTableResponseSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
         },
       },

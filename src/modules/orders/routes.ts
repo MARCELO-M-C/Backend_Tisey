@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
-import { authenticateRequest } from "../auth/service";
+import { authorizeAccess } from "../auth/service";
 import {
   addItemsToOrderController,
   cancelOrderController,
@@ -20,7 +20,6 @@ const positiveBodyIdSchema = {
   type: "integer",
   minimum: 1,
 };
-
 const nullableBodyIdSchema = {
   anyOf: [{ type: "integer", minimum: 1 }, { type: "null" }],
 };
@@ -37,7 +36,6 @@ const userSummarySchema = {
     fullName: { type: "string" },
   },
 };
-
 const tableSchema = {
   anyOf: [
     {
@@ -59,7 +57,6 @@ const tableSchema = {
     { type: "null" },
   ],
 };
-
 const staySchema = {
   anyOf: [
     {
@@ -104,7 +101,6 @@ const staySchema = {
     { type: "null" },
   ],
 };
-
 const shiftSchema = {
   anyOf: [
     {
@@ -123,7 +119,6 @@ const shiftSchema = {
     { type: "null" },
   ],
 };
-
 const orderItemSchema = {
   type: "object",
   additionalProperties: false,
@@ -206,7 +201,6 @@ const orderItemSchema = {
     },
   },
 };
-
 const orderEventSchema = {
   type: "object",
   additionalProperties: false,
@@ -231,7 +225,6 @@ const orderEventSchema = {
     performedBy: userSummarySchema,
   },
 };
-
 const orderResponseSchema = {
   type: "object",
   additionalProperties: false,
@@ -327,7 +320,6 @@ const orderResponseSchema = {
     },
   },
 };
-
 const basicErrorSchema = {
   type: "object",
   additionalProperties: true,
@@ -346,7 +338,6 @@ const orderIdParamsSchema = {
     id: digitStringSchema,
   },
 };
-
 const orderItemParamsSchema = {
   type: "object",
   additionalProperties: false,
@@ -356,7 +347,6 @@ const orderItemParamsSchema = {
     itemId: digitStringSchema,
   },
 };
-
 const listOrdersQuerystringSchema = {
   type: "object",
   additionalProperties: false,
@@ -389,7 +379,6 @@ const listOrdersQuerystringSchema = {
     shiftId: digitStringSchema,
   },
 };
-
 const orderItemInputSchema = {
   type: "object",
   additionalProperties: false,
@@ -407,7 +396,6 @@ const orderItemInputSchema = {
     },
   },
 };
-
 const createOrderBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -442,7 +430,6 @@ const createOrderBodySchema = {
     },
   },
 };
-
 const updateOrderBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -471,7 +458,6 @@ const updateOrderBodySchema = {
     },
   },
 };
-
 const addOrderItemsBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -497,7 +483,6 @@ const cancelOrderBodySchema = {
     },
   },
 };
-
 const updateOrderItemStatusBodySchema = {
   type: "object",
   additionalProperties: false,
@@ -510,11 +495,33 @@ const updateOrderItemStatusBodySchema = {
   },
 };
 
+const requireOrdersRead = authorizeAccess({
+  roles: ["MESERO", "COCINA", "CAJA"],
+  permissions: [
+    "ADMIN_ORDERS_MANAGE",
+    "ADMIN_KITCHEN_MANAGE",
+    "ADMIN_BILLING_MANAGE",
+  ],
+  permissionMode: "any",
+});
+
+const requireOrdersManage = authorizeAccess({
+  roles: ["MESERO"],
+  permissions: ["ADMIN_ORDERS_MANAGE"],
+  permissionMode: "any",
+});
+
+const requireOrderItemStatus = authorizeAccess({
+  roles: ["MESERO", "COCINA"],
+  permissions: ["ADMIN_ORDERS_MANAGE", "ADMIN_KITCHEN_MANAGE"],
+  permissionMode: "any",
+});
+
 const ordersRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireOrdersRead],
       schema: {
         tags: ["Orders"],
         summary: "Listar órdenes",
@@ -526,16 +533,16 @@ const ordersRoutes: FastifyPluginAsync = async (app) => {
             items: orderResponseSchema,
           },
           401: basicErrorSchema,
+          403: basicErrorSchema,
         },
       },
     },
     listOrdersController,
   );
-
   app.get(
     "/:id",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireOrdersRead],
       schema: {
         tags: ["Orders"],
         summary: "Obtener orden por id",
@@ -544,17 +551,17 @@ const ordersRoutes: FastifyPluginAsync = async (app) => {
         response: {
           200: orderResponseSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
         },
       },
     },
     getOrderByIdController,
   );
-
   app.post(
     "/",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireOrdersManage],
       schema: {
         tags: ["Orders"],
         summary: "Crear orden",
@@ -570,11 +577,10 @@ const ordersRoutes: FastifyPluginAsync = async (app) => {
     },
     createOrderController,
   );
-
   app.patch(
     "/:id",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireOrdersManage],
       schema: {
         tags: ["Orders"],
         summary: "Actualizar cabecera de una orden DRAFT",
@@ -585,6 +591,7 @@ const ordersRoutes: FastifyPluginAsync = async (app) => {
           200: orderResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -592,11 +599,10 @@ const ordersRoutes: FastifyPluginAsync = async (app) => {
     },
     updateOrderController,
   );
-
   app.post(
     "/:id/items",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireOrdersManage],
       schema: {
         tags: ["Orders"],
         summary: "Agregar ítems a una orden DRAFT",
@@ -607,6 +613,7 @@ const ordersRoutes: FastifyPluginAsync = async (app) => {
           200: orderResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -614,11 +621,10 @@ const ordersRoutes: FastifyPluginAsync = async (app) => {
     },
     addItemsToOrderController,
   );
-
   app.post(
     "/:id/send",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireOrdersManage],
       schema: {
         tags: ["Orders"],
         summary: "Enviar orden a cocina",
@@ -628,6 +634,7 @@ const ordersRoutes: FastifyPluginAsync = async (app) => {
           200: orderResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -635,11 +642,10 @@ const ordersRoutes: FastifyPluginAsync = async (app) => {
     },
     sendOrderController,
   );
-
   app.post(
     "/:id/cancel",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireOrdersManage],
       schema: {
         tags: ["Orders"],
         summary: "Cancelar orden",
@@ -650,6 +656,7 @@ const ordersRoutes: FastifyPluginAsync = async (app) => {
           200: orderResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -657,11 +664,10 @@ const ordersRoutes: FastifyPluginAsync = async (app) => {
     },
     cancelOrderController,
   );
-
   app.patch(
     "/:id/items/:itemId/status",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireOrderItemStatus],
       schema: {
         tags: ["Orders"],
         summary: "Actualizar estado de un ítem",
@@ -672,6 +678,7 @@ const ordersRoutes: FastifyPluginAsync = async (app) => {
           200: orderResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },

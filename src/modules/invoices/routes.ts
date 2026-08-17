@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
-import { authenticateRequest } from "../auth/service";
+import { authorizeAccess } from "../auth/service";
 import {
   createInvoiceFromOrderController,
   createInvoiceFromStayController,
@@ -296,11 +296,18 @@ const createPaymentBodySchema = {
   },
 };
 
+
+const requireBillingAccess = authorizeAccess({
+  roles: ["CAJA"],
+  permissions: ["ADMIN_BILLING_MANAGE"],
+  permissionMode: "any",
+});
+
 const invoicesRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireBillingAccess],
       schema: {
         tags: ["Invoices"],
         summary: "Listar facturas",
@@ -309,6 +316,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
         response: {
           200: { type: "array", items: invoiceResponseSchema },
           401: basicErrorSchema,
+          403: basicErrorSchema,
         },
       },
     },
@@ -318,7 +326,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/:invoiceId",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireBillingAccess],
       schema: {
         tags: ["Invoices"],
         summary: "Obtener factura por id",
@@ -327,6 +335,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
         response: {
           200: invoiceResponseSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
         },
       },
@@ -337,7 +346,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
   app.post(
     "/from-order",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireBillingAccess],
       schema: {
         tags: ["Invoices"],
         summary: "Emitir factura desde una orden",
@@ -347,6 +356,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
           201: invoiceResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -358,7 +368,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
   app.post(
     "/from-stay",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireBillingAccess],
       schema: {
         tags: ["Invoices"],
         summary: "Emitir factura de hospedaje por persona y noche",
@@ -368,6 +378,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
           201: invoiceResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -379,7 +390,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
     "/:invoiceId/void",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireBillingAccess],
       schema: {
         tags: ["Invoices"],
         summary: "Anular factura",
@@ -390,6 +401,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
           200: invoiceResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -401,7 +413,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
     "/:invoiceId/print",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireBillingAccess],
       schema: {
         tags: ["Invoices"],
         summary: "Registrar impresión de factura",
@@ -412,6 +424,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
           200: invoiceResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -423,7 +436,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/:invoiceId/payments",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireBillingAccess],
       schema: {
         tags: ["Invoices"],
         summary: "Listar pagos de una factura",
@@ -432,6 +445,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
         response: {
           200: { type: "array", items: paymentResponseSchema },
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
         },
       },
@@ -442,7 +456,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
   app.post(
     "/:invoiceId/payments",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireBillingAccess],
       schema: {
         tags: ["Invoices"],
         summary: "Registrar pago de factura",
@@ -453,6 +467,7 @@ const invoicesRoutes: FastifyPluginAsync = async (app) => {
           201: invoiceResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },

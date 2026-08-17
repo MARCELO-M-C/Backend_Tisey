@@ -1,5 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
-import { authenticateRequest } from "../auth/service";
+import {
+  authorizeAccess,
+  authorizePermissions,
+} from "../auth/service";
 import {
   createCategoryController,
   createMenuItemController,
@@ -13,6 +16,21 @@ import {
   updateMenuItemController,
   updateMenuItemStatusController,
 } from "./controller";
+
+const MENU_MANAGE_PERMISSION = "ADMIN_MENU_MANAGE";
+
+const requireMenuRead = authorizeAccess({
+  roles: ["MESERO"],
+  permissions: [MENU_MANAGE_PERMISSION, "ADMIN_ORDERS_MANAGE"],
+  permissionMode: "any",
+});
+
+const requireMenuStationsRead = authorizeAccess({
+  permissions: [MENU_MANAGE_PERMISSION, "ADMIN_SHIFTS_&_STATIONS_MANAGE"],
+  permissionMode: "any",
+});
+
+const requireMenuManage = authorizePermissions([MENU_MANAGE_PERMISSION]);
 
 const digitStringSchema = {
   type: "string",
@@ -231,18 +249,16 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/stations",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireMenuStationsRead],
       schema: {
         tags: ["Stations"],
         summary: "Listar estaciones KDS",
         security: [{ bearerAuth: [] }],
         querystring: listStationsQuerystringSchema,
         response: {
-          200: {
-            type: "array",
-            items: stationResponseSchema,
-          },
+          200: { type: "array", items: stationResponseSchema },
           401: basicErrorSchema,
+          403: basicErrorSchema,
         },
       },
     },
@@ -252,18 +268,16 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/categories",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireMenuRead],
       schema: {
         tags: ["Menu"],
         summary: "Listar categorías de menú",
         security: [{ bearerAuth: [] }],
         querystring: listCategoriesQuerystringSchema,
         response: {
-          200: {
-            type: "array",
-            items: categoryResponseSchema,
-          },
+          200: { type: "array", items: categoryResponseSchema },
           401: basicErrorSchema,
+          403: basicErrorSchema,
         },
       },
     },
@@ -273,7 +287,7 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/categories/:categoryId",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireMenuRead],
       schema: {
         tags: ["Menu"],
         summary: "Obtener categoría por id",
@@ -282,6 +296,7 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
         response: {
           200: categoryResponseSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
         },
       },
@@ -292,7 +307,7 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
   app.post(
     "/categories",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireMenuManage],
       schema: {
         tags: ["Menu"],
         summary: "Crear categoría de menú",
@@ -302,6 +317,7 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
           201: categoryResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           409: basicErrorSchema,
         },
       },
@@ -312,7 +328,7 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
     "/categories/:categoryId",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireMenuManage],
       schema: {
         tags: ["Menu"],
         summary: "Actualizar categoría de menú",
@@ -323,6 +339,7 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
           200: categoryResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -334,7 +351,7 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
     "/categories/:categoryId/status",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireMenuManage],
       schema: {
         tags: ["Menu"],
         summary: "Activar o desactivar categoría",
@@ -345,6 +362,7 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
           200: categoryResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -356,18 +374,16 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/items",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireMenuRead],
       schema: {
         tags: ["Menu"],
         summary: "Listar ítems de menú",
         security: [{ bearerAuth: [] }],
         querystring: listMenuItemsQuerystringSchema,
         response: {
-          200: {
-            type: "array",
-            items: menuItemResponseSchema,
-          },
+          200: { type: "array", items: menuItemResponseSchema },
           401: basicErrorSchema,
+          403: basicErrorSchema,
         },
       },
     },
@@ -377,7 +393,7 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/items/:itemId",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireMenuRead],
       schema: {
         tags: ["Menu"],
         summary: "Obtener ítem de menú por id",
@@ -386,6 +402,7 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
         response: {
           200: menuItemResponseSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
         },
       },
@@ -396,7 +413,7 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
   app.post(
     "/items",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireMenuManage],
       schema: {
         tags: ["Menu"],
         summary: "Crear ítem de menú",
@@ -406,6 +423,7 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
           201: menuItemResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -417,7 +435,7 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
     "/items/:itemId",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireMenuManage],
       schema: {
         tags: ["Menu"],
         summary: "Actualizar ítem de menú",
@@ -428,6 +446,7 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
           200: menuItemResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
           409: basicErrorSchema,
         },
@@ -439,7 +458,7 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
     "/items/:itemId/status",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireMenuManage],
       schema: {
         tags: ["Menu"],
         summary: "Activar o desactivar ítem de menú",
@@ -450,6 +469,7 @@ const menuRoutes: FastifyPluginAsync = async (app) => {
           200: menuItemResponseSchema,
           400: basicErrorSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
         },
       },

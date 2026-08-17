@@ -1,3 +1,8 @@
+import type { AuthTokenPayload } from "../auth/mapper";
+import {
+  isAdminRequestUser,
+  requestUserHasPermission,
+} from "../auth/service";
 import { toShiftResponse, type ShiftResponseDto } from "./mapper";
 import * as shiftsRepository from "./repository";
 import type {
@@ -6,6 +11,9 @@ import type {
   ListShiftsQueryInput,
   UpdateShiftBodyInput,
 } from "./schemas";
+
+const SHIFTS_MANAGE_PERMISSION = "ADMIN_SHIFTS_&_STATIONS_MANAGE";
+const ORDERS_MANAGE_PERMISSION = "ADMIN_ORDERS_MANAGE";
 
 export class ShiftsServiceError extends Error {
   constructor(
@@ -36,6 +44,46 @@ function normalizeNotes(value?: string | null): string | null | undefined {
 
   const trimmedValue = value.trim();
   return trimmedValue.length > 0 ? trimmedValue : null;
+}
+
+function actorCanManageShifts(actor: AuthTokenPayload): boolean {
+  return (
+    isAdminRequestUser(actor) ||
+    requestUserHasPermission(actor, SHIFTS_MANAGE_PERMISSION)
+  );
+}
+
+function actorCanReadAllShifts(actor: AuthTokenPayload): boolean {
+  return (
+    actorCanManageShifts(actor) ||
+    requestUserHasPermission(actor, ORDERS_MANAGE_PERMISSION)
+  );
+}
+
+function assertActorCanReadShift(
+  actor: AuthTokenPayload,
+  shiftUserId: bigint,
+): void {
+  if (actorCanReadAllShifts(actor)) return;
+
+  const actorId = parseUserId(actor.sub);
+  if (shiftUserId !== actorId) {
+    throw new ShiftsServiceError(
+      403,
+      "SHIFT_ACCESS_FORBIDDEN",
+      "No puedes consultar el turno de otro usuario.",
+    );
+  }
+}
+
+function assertActorCanManageShift(actor: AuthTokenPayload): void {
+  if (actorCanManageShifts(actor)) return;
+
+  throw new ShiftsServiceError(
+    403,
+    "SHIFT_MANAGEMENT_FORBIDDEN",
+    "No tienes autorización para administrar turnos de otros usuarios.",
+  );
 }
 
 async function ensureShiftExists(shiftId: bigint) {
@@ -76,27 +124,57 @@ async function ensureUserCanHaveShift(userId: bigint) {
 
 export async function listShifts(
   filters: ListShiftsQueryInput,
+  actor: AuthTokenPayload,
 ): Promise<ShiftResponseDto[]> {
+  const actorId = parseUserId(actor.sub);
+
+  if (!actorCanReadAllShifts(actor)) {
+    if (filters.userId && filters.userId !== actorId) {
+      throw new ShiftsServiceError(
+        403,
+        "SHIFT_ACCESS_FORBIDDEN",
+        "No puedes consultar turnos de otro usuario.",
+      );
+    }
+
+    const shifts = await shiftsRepository.listShifts({
+      ...filters,
+      userId: actorId,
+    });
+
+    return shifts.map(toShiftResponse);
+  }
+
   const shifts = await shiftsRepository.listShifts(filters);
   return shifts.map(toShiftResponse);
 }
 
 export async function getShiftById(
   shiftId: bigint,
+  actor: AuthTokenPayload,
 ): Promise<ShiftResponseDto> {
   const shift = await ensureShiftExists(shiftId);
+  assertActorCanReadShift(actor, shift.userId);
+
   return toShiftResponse(shift);
 }
 
 export async function createShift(
   input: CreateShiftBodyInput,
-  actorUserId: string,
+  actor: AuthTokenPayload,
 ): Promise<ShiftResponseDto> {
-  const actorId = parseUserId(actorUserId);
+  const actorId = parseUserId(actor.sub);
   const targetUserId = input.userId ?? actorId;
 
-  await ensureUserCanHaveShift(targetUserId);
+  if (targetUserId !== actorId && !actorCanManageShifts(actor)) {
+    throw new ShiftsServiceError(
+      403,
+      "SHIFT_CREATE_FOR_OTHER_USER_FORBIDDEN",
+      "Solo puedes abrir tu propio turno.",
+    );
+  }
 
+  await ensureUserCanHaveShift(targetUserId);
   const openShift = await shiftsRepository.findOpenShiftByUserId(targetUserId);
 
   if (openShift) {
@@ -108,7 +186,6 @@ export async function createShift(
   }
 
   const startedAt = input.startedAt ?? new Date();
-
   const createdShift = await shiftsRepository.createShift({
     userId: targetUserId,
     startedAt,
@@ -121,7 +198,10 @@ export async function createShift(
 export async function updateShift(
   shiftId: bigint,
   input: UpdateShiftBodyInput,
+  actor: AuthTokenPayload,
 ): Promise<ShiftResponseDto> {
+  assertActorCanManageShift(actor);
+
   const currentShift = await ensureShiftExists(shiftId);
 
   if (currentShift.endedAt) {
@@ -145,8 +225,20 @@ export async function updateShift(
 export async function endShift(
   shiftId: bigint,
   input: EndShiftBodyInput,
+  actor: AuthTokenPayload,
 ): Promise<ShiftResponseDto> {
   const currentShift = await ensureShiftExists(shiftId);
+
+  if (!actorCanManageShifts(actor)) {
+    const actorId = parseUserId(actor.sub);
+    if (currentShift.userId !== actorId) {
+      throw new ShiftsServiceError(
+        403,
+        "SHIFT_END_FOR_OTHER_USER_FORBIDDEN",
+        "Solo puedes cerrar tu propio turno.",
+      );
+    }
+  }
 
   if (currentShift.endedAt) {
     throw new ShiftsServiceError(
@@ -167,7 +259,6 @@ export async function endShift(
   }
 
   const endedAt = input.endedAt ?? new Date();
-
   if (endedAt < currentShift.startedAt) {
     throw new ShiftsServiceError(
       400,

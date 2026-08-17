@@ -1,6 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
 import {
-  authenticateRequest,
   authorizePermissions,
 } from "../auth/service";
 import {
@@ -108,7 +107,7 @@ const cabinsRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireLodgingManage],
       schema: {
         tags: ["Cabins"],
         summary: "Listar cabañas",
@@ -117,6 +116,7 @@ const cabinsRoutes: FastifyPluginAsync = async (app) => {
         response: {
           200: { type: "array", items: cabinResponseSchema },
           401: basicErrorSchema,
+          403: basicErrorSchema,
         },
       },
     },
@@ -126,7 +126,7 @@ const cabinsRoutes: FastifyPluginAsync = async (app) => {
   app.get(
     "/:cabinId",
     {
-      onRequest: [authenticateRequest],
+      onRequest: [requireLodgingManage],
       schema: {
         tags: ["Cabins"],
         summary: "Obtener cabaña por id",
@@ -135,6 +135,7 @@ const cabinsRoutes: FastifyPluginAsync = async (app) => {
         response: {
           200: cabinResponseSchema,
           401: basicErrorSchema,
+          403: basicErrorSchema,
           404: basicErrorSchema,
         },
       },
