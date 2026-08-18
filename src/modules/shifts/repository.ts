@@ -122,7 +122,6 @@ export async function countOpenOrdersByShift(
           OrderStatus.SENT,
           OrderStatus.IN_PROGRESS,
           OrderStatus.READY,
-          OrderStatus.DELIVERED,
         ],
       },
     },
