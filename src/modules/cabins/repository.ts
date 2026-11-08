@@ -1,7 +1,7 @@
-import { Prisma, StayStatus, cabins_status } from "@prisma/client";
+import { Prisma, StayStatus, cabins_status } from "../../generated/prisma/client";
 import { prisma } from "../../lib/prisma";
 
-const cabinSelect = Prisma.validator<Prisma.CabinDefaultArgs>()({
+const cabinSelect = {
   select: {
     id: true,
     cabinNumber: true,
@@ -15,7 +15,7 @@ const cabinSelect = Prisma.validator<Prisma.CabinDefaultArgs>()({
       },
     },
   },
-});
+} satisfies Prisma.CabinDefaultArgs;
 
 export type CabinRecord = Prisma.CabinGetPayload<typeof cabinSelect>;
 

@@ -4,7 +4,7 @@ import {
   Prisma,
   StayStatus,
   cabins_status,
-} from "@prisma/client";
+} from "../../generated/prisma/client";
 import { prisma } from "../../lib/prisma";
 
 const guestSummarySelect = {
@@ -39,7 +39,7 @@ const lodgingRateSummarySelect = {
   effectiveFrom: true,
 } satisfies Prisma.LodgingRateSelect;
 
-const staySelect = Prisma.validator<Prisma.StayDefaultArgs>()({
+const staySelect = {
   select: {
     id: true,
     cabinId: true,
@@ -79,7 +79,7 @@ const staySelect = Prisma.validator<Prisma.StayDefaultArgs>()({
       },
     },
   },
-});
+} satisfies Prisma.StayDefaultArgs;
 
 export type StayRecord = Prisma.StayGetPayload<typeof staySelect>;
 export type GuestSummaryRecord = Prisma.GuestGetPayload<{

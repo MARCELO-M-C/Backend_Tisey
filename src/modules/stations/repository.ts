@@ -1,7 +1,7 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "../../lib/prisma";
 
-const stationSelect = Prisma.validator<Prisma.StationDefaultArgs>()({
+const stationSelect = {
   select: {
     id: true,
     code: true,
@@ -14,7 +14,7 @@ const stationSelect = Prisma.validator<Prisma.StationDefaultArgs>()({
       },
     },
   },
-});
+} satisfies Prisma.StationDefaultArgs;
 
 export type StationRecord = Prisma.StationGetPayload<typeof stationSelect>;
 

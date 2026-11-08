@@ -1,16 +1,16 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "../../lib/prisma";
 
-const stationSelect = Prisma.validator<Prisma.StationDefaultArgs>()({
+const stationSelect = {
   select: {
     id: true,
     code: true,
     name: true,
     isActive: true,
   },
-});
+} satisfies Prisma.StationDefaultArgs;
 
-const categorySelect = Prisma.validator<Prisma.MenuCategoryDefaultArgs>()({
+const categorySelect = {
   select: {
     id: true,
     name: true,
@@ -22,9 +22,9 @@ const categorySelect = Prisma.validator<Prisma.MenuCategoryDefaultArgs>()({
       },
     },
   },
-});
+} satisfies Prisma.MenuCategoryDefaultArgs;
 
-const menuItemSelect = Prisma.validator<Prisma.MenuItemDefaultArgs>()({
+const menuItemSelect = {
   select: {
     id: true,
     categoryId: true,
@@ -51,7 +51,7 @@ const menuItemSelect = Prisma.validator<Prisma.MenuItemDefaultArgs>()({
       },
     },
   },
-});
+} satisfies Prisma.MenuItemDefaultArgs;
 
 export type StationRecord = Prisma.StationGetPayload<typeof stationSelect>;
 export type MenuCategoryRecord = Prisma.MenuCategoryGetPayload<

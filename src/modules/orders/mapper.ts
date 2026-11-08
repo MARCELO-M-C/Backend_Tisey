@@ -1,4 +1,4 @@
-import { OrderItemStatus, Prisma } from "@prisma/client";
+import { OrderItemStatus, Prisma } from "../../generated/prisma/client";
 import type { OrderRecord } from "./repository";
 
 export interface OrderUserSummaryDto {

@@ -1,4 +1,4 @@
-import { StayStatus, cabins_status } from "@prisma/client";
+import { StayStatus, cabins_status } from "../../generated/prisma/client";
 import { toStayResponse, type StayResponseDto } from "./mapper";
 import * as staysRepository from "./repository";
 import type {

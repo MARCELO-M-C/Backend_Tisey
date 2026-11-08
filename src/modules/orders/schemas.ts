@@ -3,7 +3,7 @@ import {
   OrderItemStatus,
   OrderStatus,
   ServiceMode,
-} from "@prisma/client";
+} from "../../generated/prisma/client";
 import { z } from "zod";
 
 const bigintIdSchema = z

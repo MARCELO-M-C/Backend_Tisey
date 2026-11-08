@@ -1,17 +1,17 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "../../lib/prisma";
 
 const permissionSelect =
-  Prisma.validator<Prisma.PermissionDefaultArgs>()({
+  {
     select: {
       id: true,
       code: true,
       description: true,
     },
-  });
+  } satisfies Prisma.PermissionDefaultArgs;
 
 const roleSelect =
-  Prisma.validator<Prisma.RoleDefaultArgs>()({
+  {
     select: {
       id: true,
       name: true,
@@ -21,7 +21,7 @@ const roleSelect =
         },
       },
     },
-  });
+  } satisfies Prisma.RoleDefaultArgs;
 
 export type PermissionRecord =
   Prisma.PermissionGetPayload<

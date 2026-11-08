@@ -1,7 +1,7 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "../../lib/prisma";
 
-const lodgingRateSelect = Prisma.validator<Prisma.LodgingRateDefaultArgs>()({
+const lodgingRateSelect = {
   select: {
     id: true,
     amountPerPersonPerNight: true,
@@ -9,7 +9,7 @@ const lodgingRateSelect = Prisma.validator<Prisma.LodgingRateDefaultArgs>()({
     effectiveFrom: true,
     createdAt: true,
   },
-});
+} satisfies Prisma.LodgingRateDefaultArgs;
 
 export type LodgingRateRecord = Prisma.LodgingRateGetPayload<
   typeof lodgingRateSelect

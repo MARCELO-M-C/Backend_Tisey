@@ -1,4 +1,4 @@
-import { cabins_status } from "@prisma/client";
+import { cabins_status } from "../../generated/prisma/client";
 import { toCabinResponse, type CabinResponseDto } from "./mapper";
 import * as cabinsRepository from "./repository";
 import type {

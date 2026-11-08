@@ -6,7 +6,7 @@ import {
   PaymentMethod,
   Prisma,
   StayStatus,
-} from "@prisma/client";
+} from "../../generated/prisma/client";
 import { prisma } from "../../lib/prisma";
 
 const userSummarySelect = {
@@ -41,7 +41,7 @@ const invoiceLineSelect = {
   createdAt: true,
 } satisfies Prisma.InvoiceLineSelect;
 
-const paymentSelect = Prisma.validator<Prisma.PaymentDefaultArgs>()({
+const paymentSelect = {
   select: {
     id: true,
     invoiceId: true,
@@ -52,9 +52,9 @@ const paymentSelect = Prisma.validator<Prisma.PaymentDefaultArgs>()({
     receivedBy: true,
     receivedByUser: { select: userSummarySelect },
   },
-});
+} satisfies Prisma.PaymentDefaultArgs;
 
-const invoiceSelect = Prisma.validator<Prisma.InvoiceDefaultArgs>()({
+const invoiceSelect = {
   select: {
     id: true,
     invoiceCode: true,
@@ -115,9 +115,9 @@ const invoiceSelect = Prisma.validator<Prisma.InvoiceDefaultArgs>()({
       orderBy: { paidAt: "asc" },
     },
   },
-});
+} satisfies Prisma.InvoiceDefaultArgs;
 
-const orderForInvoiceSelect = Prisma.validator<Prisma.OrderDefaultArgs>()({
+const orderForInvoiceSelect = {
   select: {
     id: true,
     orderCode: true,
@@ -139,9 +139,9 @@ const orderForInvoiceSelect = Prisma.validator<Prisma.OrderDefaultArgs>()({
       select: { id: true, status: true },
     },
   },
-});
+} satisfies Prisma.OrderDefaultArgs;
 
-const stayForInvoiceSelect = Prisma.validator<Prisma.StayDefaultArgs>()({
+const stayForInvoiceSelect = {
   select: {
     id: true,
     checkInDate: true,
@@ -186,7 +186,7 @@ const stayForInvoiceSelect = Prisma.validator<Prisma.StayDefaultArgs>()({
       orderBy: { createdAt: "asc" },
     },
   },
-});
+} satisfies Prisma.StayDefaultArgs;
 
 export type InvoiceRecord = Prisma.InvoiceGetPayload<typeof invoiceSelect>;
 export type PaymentRecord = Prisma.PaymentGetPayload<typeof paymentSelect>;

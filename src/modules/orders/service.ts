@@ -5,7 +5,7 @@ import {
   Prisma,
   ServiceMode,
   StayStatus,
-} from "@prisma/client";
+} from "../../generated/prisma/client";
 import type { AuthTokenPayload } from "../auth/mapper";
 import {
   isAdminRequestUser,

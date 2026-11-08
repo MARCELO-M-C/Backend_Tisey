@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "../../generated/prisma/client";
 import type { InvoiceRecord, PaymentRecord } from "./repository";
 
 export interface UserSummaryDto {

@@ -1,7 +1,7 @@
-import { Prisma } from "@prisma/client";
+import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "../../lib/prisma";
 
-const userSelect = Prisma.validator<Prisma.UserDefaultArgs>()({
+const userSelect = {
   select: {
     id: true,
     username: true,
@@ -31,7 +31,7 @@ const userSelect = Prisma.validator<Prisma.UserDefaultArgs>()({
       },
     },
   },
-});
+} satisfies Prisma.UserDefaultArgs;
 
 export type UserRecord = Prisma.UserGetPayload<typeof userSelect>;
 

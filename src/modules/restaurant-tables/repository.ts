@@ -1,8 +1,8 @@
-import { OrderStatus, Prisma } from "@prisma/client";
+import { OrderStatus, Prisma } from "../../generated/prisma/client";
 import { prisma } from "../../lib/prisma";
 
 const restaurantTableSelect =
-  Prisma.validator<Prisma.RestaurantTableDefaultArgs>()({
+  {
     select: {
       id: true,
       code: true,
@@ -15,7 +15,7 @@ const restaurantTableSelect =
         },
       },
     },
-  });
+  } satisfies Prisma.RestaurantTableDefaultArgs;
 
 export type RestaurantTableRecord = Prisma.RestaurantTableGetPayload<
   typeof restaurantTableSelect

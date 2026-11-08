@@ -1,4 +1,4 @@
-import { OrderStatus, Prisma } from "@prisma/client";
+import { OrderStatus, Prisma } from "../../generated/prisma/client";
 import { prisma } from "../../lib/prisma";
 
 const userSummarySelect = {
@@ -9,7 +9,7 @@ const userSummarySelect = {
   isActive: true,
 } satisfies Prisma.UserSelect;
 
-const shiftSelect = Prisma.validator<Prisma.ShiftDefaultArgs>()({
+const shiftSelect = {
   select: {
     id: true,
     userId: true,
@@ -25,7 +25,7 @@ const shiftSelect = Prisma.validator<Prisma.ShiftDefaultArgs>()({
       },
     },
   },
-});
+} satisfies Prisma.ShiftDefaultArgs;
 
 export type ShiftRecord = Prisma.ShiftGetPayload<typeof shiftSelect>;
 

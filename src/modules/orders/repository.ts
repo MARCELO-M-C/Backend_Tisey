@@ -5,7 +5,7 @@ import {
   OrderStatus,
   Prisma,
   ServiceMode,
-} from "@prisma/client";
+} from "../../generated/prisma/client";
 import { prisma } from "../../lib/prisma";
 
 const userSummarySelect = {
@@ -15,7 +15,7 @@ const userSummarySelect = {
   lastName: true,
 } as const;
 
-const orderSelect = Prisma.validator<Prisma.OrderDefaultArgs>()({
+const orderSelect = {
   select: {
     id: true,
     orderCode: true,
@@ -141,7 +141,7 @@ const orderSelect = Prisma.validator<Prisma.OrderDefaultArgs>()({
       },
     },
   },
-});
+} satisfies Prisma.OrderDefaultArgs;
 
 export type OrderRecord = Prisma.OrderGetPayload<typeof orderSelect>;
 
