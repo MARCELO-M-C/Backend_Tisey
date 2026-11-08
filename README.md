@@ -42,12 +42,6 @@ Ejecutar en desarrollo:
 npm run dev
 ```
 
-Ejecutar versión compilada:
-
-```bash
-npm run start
-```
-
 # Scripts útiles
 
 Desarrollo:
